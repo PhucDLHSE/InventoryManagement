@@ -10,14 +10,14 @@ const authController = {
             if (!user) {
                 return res.status(401).json({
                     success: false,
-                    message: 'Username or password incorrect'
+                    message: 'Username or password incorrect. Please login again!.'
                 });
             }
 
             if (password !== user.password) {
                 return res.status(401).json({
                     success: false,
-                     message: 'Username or password incorrect'
+                     message: 'Username or password incorrect. Please login again!.'
                 });
             }
 

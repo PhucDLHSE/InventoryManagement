@@ -4,4 +4,4 @@ const ROLES = {
     STAFF: 'ST3'
   };
   
-  module.exports = ROLES;
+module.exports = ROLES;

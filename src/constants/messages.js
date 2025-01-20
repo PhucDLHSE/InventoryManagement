@@ -1,4 +1,6 @@
 exports.USER_MESSAGES = {
+  MISSING_FIELDS: "Please input require fields: role_id, user_name, fullName, email, password",
+  INVALID_EMAIL: "Email invalid format!",
   ROLE_INVALID: 'Role_id invalid!',
   USERNAME_EXISTS: 'Username existed',
   NO_UPDATE_DATA: 'No information being updated!',

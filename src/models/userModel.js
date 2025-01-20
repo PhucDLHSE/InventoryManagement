@@ -1,5 +1,5 @@
 const pool = require('../config/dbConfig');
-const { ROLES } = require('../constants/roles');
+const ROLES  = require('../constants/roles');
 const { STATUS } = require('../constants/status');
 const { USER_MESSAGES } = require('../constants/messages');
 const { generateSelectUserFields, generateSelectUserWithPassword } = require('../utils/queryUtils');
@@ -79,32 +79,47 @@ class User {
 
   // Create
   static async create(userData) {
-    const { role_id, user_name, fullName, email, password, warehouse_code } = userData;
-  
-    if (!Object.values(ROLES).includes(role_id)) {
-      throw new Error(USER_MESSAGES.ROLE_INVALID);
+    try {
+        const { 
+            role_id, 
+            user_name, 
+            fullName, 
+            email, 
+            password, 
+            warehouse_code = null 
+        } = userData;
+
+        const validRoles = Object.values(ROLES);  // ['AD1', 'MA2', 'ST3']
+        if (!role_id || !validRoles.includes(role_id)) {
+          throw new Error(USER_MESSAGES.ROLE_INVALID);
+        }   
+
+        const userExists = await this.findByUsername(user_name);
+        if (userExists) {
+            throw new Error(USER_MESSAGES.USERNAME_EXISTS);
+        }
+
+        const user_code = await this.generateUserCode(role_id);
+
+        await pool.query(
+            `INSERT INTO User (
+                user_code, role_id, user_name, 
+                fullName, email, password, warehouse_code
+            ) VALUES (?, ?, ?, ?, ?, ?, ?)`,
+            [user_code, role_id, user_name, fullName, email, password, warehouse_code]
+        );
+
+        const [newUser] = await pool.query(
+            `${generateSelectUserFields()} WHERE u.user_code = ?`, 
+            [user_code]
+        );
+        return newUser[0];
+
+    } catch (error) {
+        console.error("Create user error:", error);
+        throw error;
     }
-
-    const user_code = await this.generateUserCode(role_id);
-    const userExists = await this.findByUsername(user_name);
-    if (userExists) {
-      throw new Error(USER_MESSAGES.USERNAME_EXISTS);
-    }
-    const status = warehouse_code ? 'active' : 'inactive';
-
-    await pool.query(
-      `INSERT INTO User (
-        user_id, user_code, role_id, user_name, 
-        fullName, email, password, warehouse_code, 
-        status
-      ) VALUES (UUID(), ?, ?, ?, ?, ?, ?, ?, ?)`,
-      [user_code, role_id, user_name, fullName, email, password, warehouse_code || null, status]
-    );
-
-    const [newUser] = await pool.query(`${generateSelectUserFields()} WHERE u.user_code = ?`, [user_code]);
-    return newUser[0];
-  }
-
+}
   // Update
   static async update(userCode, userData) {
     const updateFields = [];
