@@ -52,6 +52,7 @@ const swaggerDocs = swaggerJsDoc(swaggerOptions);
 // Routes
 app.use('/api/auth', require('./src/routes/authRoutes'));
 app.use('/api/users', require('./src/routes/userRoutes'));
+app.use('/api/warehouses', require('./src/routes/warehouseRoutes'));
 app.use('/api-docs', swaggerUI.serve, swaggerUI.setup(swaggerDocs));
 
 // Error handling middleware

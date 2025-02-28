@@ -3,6 +3,7 @@ const ROLES  = require('../constants/roles');
 const { STATUS } = require('../constants/status');
 const { USER_MESSAGES } = require('../constants/messages');
 const { generateSelectUserFields, generateSelectUserWithPassword } = require('../utils/queryUtils');
+const { v4: uuidv4 } = require('uuid');
 
 class User {
   static async generateUserCode(role_id) {
@@ -79,6 +80,7 @@ class User {
 
   // Create
   static async create(userData) {
+    const user_id = uuidv4();
     try {
         const { 
             role_id, 
@@ -89,24 +91,30 @@ class User {
             warehouse_code = null 
         } = userData;
 
-        const validRoles = Object.values(ROLES);  // ['AD1', 'MA2', 'ST3']
+        // Validate role_id
+        const validRoles = Object.values(ROLES);
         if (!role_id || !validRoles.includes(role_id)) {
-          throw new Error(USER_MESSAGES.ROLE_INVALID);
-        }   
+            throw new Error(USER_MESSAGES.ROLE_INVALID);
+        }
 
         const userExists = await this.findByUsername(user_name);
         if (userExists) {
             throw new Error(USER_MESSAGES.USERNAME_EXISTS);
         }
 
+        // Generate user_code
         const user_code = await this.generateUserCode(role_id);
+        
+        // Generate UUID for user_id
+        const user_id = `U${Date.now()}`; 
 
+        // Insert user
         await pool.query(
             `INSERT INTO User (
-                user_code, role_id, user_name, 
+                user_id, user_code, role_id, user_name, 
                 fullName, email, password, warehouse_code
-            ) VALUES (?, ?, ?, ?, ?, ?, ?)`,
-            [user_code, role_id, user_name, fullName, email, password, warehouse_code]
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+            [user_id, user_code, role_id, user_name, fullName, email, password, warehouse_code]
         );
 
         const [newUser] = await pool.query(
@@ -163,23 +171,26 @@ class User {
   }
 
   // Delete
-  static async delete(userCode) {
-    const [user] = await pool.query(`${generateSelectUserFields()} WHERE u.user_code = ?`, [userCode]);
-    if (!user[0]) {
-      throw new Error(USER_MESSAGES.CANNOT_DELETE);
-    }
+static async delete(userCode) {
+  const [user] = await pool.query(`${generateSelectUserFields()} WHERE u.user_code = ?`, [userCode]);
+  if (!user[0]) {
+    throw new Error(USER_MESSAGES.CANNOT_DELETE);
+  }
 
-    if (user[0].role_id === ROLES.ADMIN) { 
-      const [adminCount] = await pool.query(
-        'SELECT COUNT(*) as count FROM User WHERE role_id = ?',
-        [ROLES.ADMIN]
-      );
-    
-      if (adminCount[0].count <= 1) {
-        throw new Error(USER_MESSAGES.LAST_ADMIN);
-      }
+  // Kiểm tra nếu user là admin cuối cùng
+  if (user[0].role_id === ROLES.ADMIN) { 
+    const [adminCount] = await pool.query(
+      'SELECT COUNT(*) as count FROM User WHERE role_id = ?',
+      [ROLES.ADMIN]
+    );
+  
+    if (adminCount[0].count <= 1) {
+      throw new Error(USER_MESSAGES.LAST_ADMIN);
     }
+  }
 
+  // Chỉ kiểm tra warehouse nếu user được gán warehouse
+  if (user[0].warehouse_code) {
     const [warehouseUsers] = await pool.query(
       `SELECT COUNT(*) as count 
       FROM User 
@@ -187,32 +198,32 @@ class User {
       [user[0].warehouse_code, userCode]
     );
 
+    // Chỉ không cho xóa nếu user là người duy nhất quản lý warehouse
     if (warehouseUsers[0].count === 0) {
       const message = USER_MESSAGES.WAREHOUSE_MANAGER.replace('{warehouse}', user[0].warehouse_code);
       throw new Error(message);
     }
+  }
 
-  
+  // Kiểm tra nếu user đang quản lý StockCheckNote
+  try {
     const [stockCheck] = await pool.query(
-      'SELECT COUNT(*) as count FROM productinstock WHERE checked_by = ?',
+      'SELECT COUNT(*) as count FROM StockCheckNote WHERE checker = ?',
       [userCode]
     );
 
     if (stockCheck[0].count > 0) {
-      const [otherUser] = await pool.query(
-        'SELECT user_code FROM User WHERE warehouse_code = ? AND user_code != ? LIMIT 1',
-        [user[0].warehouse_code, userCode]
-      );
-
-    await pool.query(
-      'UPDATE productinstock SET checked_by = ? WHERE checked_by = ?',
-      [otherUser[0].user_code, userCode]
-    );
+      throw new Error(USER_MESSAGES.USER_HAS_STOCKCHECK);
+    }
+  } catch (error) {
+    // Bỏ qua lỗi nếu bảng không tồn tại
+    console.log("StockCheckNote check error:", error.message);
   }
 
-    const [result] = await pool.query('DELETE FROM User WHERE user_code = ?', [userCode]);
-    return user[0];
-  }
+  // Xóa user
+  const [result] = await pool.query('DELETE FROM User WHERE user_code = ?', [userCode]);
+  return user[0];
+}
 
   static async checkUserCodeExists(userCode) {
     const [rows] = await pool.query('SELECT COUNT(*) as count FROM User WHERE user_code = ?', [userCode]);

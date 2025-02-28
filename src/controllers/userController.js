@@ -1,4 +1,3 @@
-// src/controllers/userController.js
 const User = require('../models/userModel');
 const { USER_MESSAGES } = require('../constants/messages');
 const HTTP_STATUS = require('../utils/httpStatus');
