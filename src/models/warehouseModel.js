@@ -6,7 +6,6 @@ const { WAREHOUSE_MESSAGES } = require('../constants/messages');
 class Warehouse {
     static async generateWarehouseCode() {
         try {
-          // Đếm số lượng kho hiện có và tạo số mới
           const [countResult] = await pool.query(
             "SELECT COUNT(*) as count FROM Warehouse"
           );
@@ -14,15 +13,12 @@ class Warehouse {
           const count = countResult[0].count;
           const newNumber = count + 1;
           const newCode = `WH${newNumber.toString().padStart(4, '0')}`;
-          
-          // Kiểm tra xem mã mới có trùng không
           const [existingCode] = await pool.query(
             "SELECT COUNT(*) as count FROM Warehouse WHERE warehouse_code = ?",
             [newCode]
           );
           
           if (existingCode[0].count > 0) {
-            // Nếu bị trùng, tạo mã với timestamp để đảm bảo duy nhất
             const timestamp = Date.now().toString().slice(-4);
             return `WH${timestamp}`;
           }
@@ -35,17 +31,46 @@ class Warehouse {
         }
       }
 
-    static async getAll() {
+      static async getAll() {
         try {
-        const [warehouses] = await pool.query(`
-            SELECT * FROM Warehouse ORDER BY warehouse_name
-        `);
-        return warehouses;
+            const [rows] = await pool.query(`
+                SELECT 
+                    w.warehouse_id, w.warehouse_code, w.warehouse_name, w.address,
+                    u.user_code, u.fullName, u.role_id
+                FROM Warehouse w
+                LEFT JOIN User u ON w.warehouse_code = u.warehouse_code
+                ORDER BY w.warehouse_name, u.role_id
+            `);
+    
+            const warehouseMap = new Map();
+    
+            rows.forEach(row => {
+                if (!warehouseMap.has(row.warehouse_code)) {
+                    warehouseMap.set(row.warehouse_code, {
+                        warehouse_id: row.warehouse_id,
+                        warehouse_code: row.warehouse_code,
+                        warehouse_name: row.warehouse_name,
+                        address: row.address,
+                        users: []
+                    });
+                }
+                if (row.user_code) {
+                    warehouseMap.get(row.warehouse_code).users.push({
+                        user_code: row.user_code,
+                        fullName: row.fullName,
+                        role: row.role_id === 'MA2' ? 'Manager' : 'Staff'
+                    });
+                }
+            });
+    
+            return Array.from(warehouseMap.values());
         } catch (error) {
             console.error('Error in getAll:', error);
             throw error;
         }
     }
+    
+
 
   static async getByCode(warehouseCode) {
     const [rows] = await pool.query(

@@ -77,9 +77,23 @@ class User {
         `, [username]);
         return rows[0];
     }
+  
+    static async countUsersByRole(warehouse_code, role_id) {
+      try {
+          const [result] = await pool.query(
+              'SELECT COUNT(*) as count FROM User WHERE warehouse_code = ? AND role_id = ?',
+              [warehouse_code, role_id]
+          );
+          return result[0].count;
+      } catch (error) {
+          console.error('Error in countUsersByRole:', error);
+          throw error;
+      }
+  }
+  
 
   // Create
-  static async create(userData) {
+    static async create(userData) {
     const user_id = uuidv4();
     try {
         const { 
@@ -127,11 +141,46 @@ class User {
         console.error("Create user error:", error);
         throw error;
     }
-}
-  // Update
+  }
+
+  //Update
   static async update(userCode, userData) {
     const updateFields = [];
     const values = [];
+
+    // Lấy thông tin user hiện tại
+    const existingUser = await User.getByCode(userCode);
+    if (!existingUser) {
+        throw new Error(USER_MESSAGES.CANNOT_UPDATE);
+    }
+
+    // Kiểm tra nếu đang cập nhật warehouse_code
+    if (userData.warehouse_code !== undefined) {
+        const { warehouse_code } = userData;
+
+        // Nếu user có warehouse_code mới, kiểm tra số lượng Manager & Staff
+        if (warehouse_code) {
+            const managerCount = await User.countUsersByRole(warehouse_code, 'MA2');
+            const staffCount = await User.countUsersByRole(warehouse_code, 'ST3');
+
+            // Nếu user là Manager và warehouse đã có 1 Manager khác -> Lỗi
+            if (existingUser.role_id === 'MA2' && managerCount >= 1) {
+                throw new Error("Nhà kho này đã có người quản lý!");
+            }
+
+            // Nếu user là Staff và warehouse đã có 5 Staff -> Lỗi
+            if (existingUser.role_id === 'ST3' && staffCount >= 5) {
+                throw new Error("Đã đạt giới hạn nhân viên trong nhà kho này!");
+            }
+        }
+
+        updateFields.push('warehouse_code = ?');
+        values.push(warehouse_code || null);
+
+        updateFields.push('status = ?');
+        values.push(warehouse_code ? 'active' : 'inactive');
+    }
+
     if (userData.fullName !== undefined) {
         updateFields.push('fullName = ?');
         values.push(userData.fullName);
@@ -139,20 +188,16 @@ class User {
     if (userData.email !== undefined) {
         updateFields.push('email = ?');
         values.push(userData.email);
-    } 
+    }
     if (userData.password !== undefined) {
         updateFields.push('password = ?');
         values.push(userData.password);
     }
-    if (userData.warehouse_code !== undefined) {
-        updateFields.push('warehouse_code = ?');
-        values.push(userData.warehouse_code || null);
-        updateFields.push('status = ?');
-        values.push(userData.warehouse_code ? 'active' : 'inactive');
-    }
+
     if (updateFields.length === 0) {
         throw new Error(USER_MESSAGES.NO_UPDATE_DATA);
     }
+
     values.push(userCode);
     const query = `
         UPDATE User 
@@ -169,6 +214,7 @@ class User {
     const [updatedUser] = await pool.query(`${generateSelectUserFields()} WHERE u.user_code = ?`, [userCode]);
     return updatedUser[0];
   }
+
 
   // Delete
 static async delete(userCode) {
