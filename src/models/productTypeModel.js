@@ -7,12 +7,10 @@ const Category = require('./categoryModel');
 class ProductType {
   static async generateProductTypeCode() {
     try {
-      // Lấy mã code cuối cùng
       const [lastCode] = await pool.query(
         'SELECT productType_code FROM ProductType ORDER BY productType_code DESC LIMIT 1'
       );
 
-      // Tạo mã code mới
       let newCode = 'PT0001';
       if (lastCode[0]) {
         const lastNumber = parseInt(lastCode[0].productType_code.substring(2));
@@ -28,18 +26,40 @@ class ProductType {
 
   static async getAll() {
     try {
-      const [productTypes] = await pool.query(`
-        SELECT pt.*, c.category_name
-        FROM ProductType pt
-        JOIN Category c ON pt.category_code = c.category_code
-        ORDER BY pt.productType_name
-      `);
-      return productTypes;
+        const [rows] = await pool.query(`
+            SELECT pt.productType_id, pt.productType_code, pt.productType_name, pt.price, 
+                   c.category_code, c.category_name
+            FROM ProductType pt
+            JOIN Category c ON pt.category_code = c.category_code
+            ORDER BY c.category_code, pt.productType_code
+        `);
+        const categoriesMap = new Map();
+
+        rows.forEach(row => {
+            const { category_code, category_name, ...productType } = row;
+
+            if (!categoriesMap.has(category_code)) {
+                categoriesMap.set(category_code, {
+                    category_code,
+                    category_name,
+                    product_types: []
+                });
+            }
+
+            categoriesMap.get(category_code).product_types.push(productType);
+        });
+
+        return {
+            success: true,
+            message: "Lấy tất cả loại sản phẩm thành công",
+            data: Array.from(categoriesMap.values())
+        };
     } catch (error) {
-      console.error('Error in getAll:', error);
-      throw error;
+        console.error("Error in getAllProductTypes:", error);
+        throw error;
     }
-  }
+}
+
 
   static async getByCode(productTypeCode) {
     try {
@@ -49,7 +69,27 @@ class ProductType {
         JOIN Category c ON pt.category_code = c.category_code
         WHERE pt.productType_code = ?
       `, [productTypeCode]);
-      return rows[0];
+      const categoriesMap = new Map();
+
+        rows.forEach(row => {
+            const { category_code, category_name, ...productType } = row;
+
+            if (!categoriesMap.has(category_code)) {
+                categoriesMap.set(category_code, {
+                    category_code,
+                    category_name,
+                    product_types: []
+                });
+            }
+
+            categoriesMap.get(category_code).product_types.push(productType);
+        });
+
+        return {
+            success: true,
+            message: "Lấy tất cả loại sản phẩm thành công",
+            data: Array.from(categoriesMap.values())
+        };
     } catch (error) {
       console.error('Error in getByCode:', error);
       throw error;
@@ -201,7 +241,23 @@ class ProductType {
         WHERE pt.category_code = ?
         ORDER BY pt.productType_name
       `, [categoryCode]);
-      return rows;
+      const categoriesMap = new Map();
+
+        rows.forEach(row => {
+            const { category_code, category_name, ...productType } = row;
+
+            if (!categoriesMap.has(category_code)) {
+                categoriesMap.set(category_code, {
+                    category_code,
+                    category_name,
+                    product_types: []
+                });
+            }
+
+            categoriesMap.get(category_code).product_types.push(productType);
+        });
+
+        return Array.from(categoriesMap.values());
     } catch (error) {
       console.error('Error in getByCategory:', error);
       throw error;

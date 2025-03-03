@@ -1,7 +1,13 @@
+const ROLE_TYPES = {
+  ADMIN: 'ADMIN',
+  MANAGER: 'MANAGER',
+  STAFF: 'STAFF'
+};
+
 const ROLES = {
-    ADMIN: 'AD1',
-    MANAGER: 'MA2',
-    STAFF: 'ST3'
-  };
-  
-module.exports = ROLES;
+  ADMIN: 'AD',
+  MANAGER: 'MA',
+  STAFF: 'ST'
+};
+
+module.exports = { ROLES, ROLE_TYPES };

@@ -27,66 +27,48 @@ class Product {
 
   static async getAll() {
     try {
-      // 1. Lấy tất cả sản phẩm với thông tin cần thiết
-      const [products] = await pool.query(`
-        SELECT p.*, pt.productType_name, pt.price, 
-               c.category_name, c.category_code
-        FROM Product p
-        JOIN ProductType pt ON p.productType_code = pt.productType_code
-        JOIN Category c ON pt.category_code = c.category_code
-        ORDER BY p.product_name
-      `);
-  
-      // 2. Nhóm sản phẩm theo loại sản phẩm
-      const productsByType = {};
-      products.forEach(product => {
-        const { productType_code, productType_name } = product;
-        
-        if (!productsByType[productType_code]) {
-          productsByType[productType_code] = {
-            productType_code,
-            productType_name,
-            category: {
-              category_code: product.category_code,
-              category_name: product.category_name
-            },
-            price: product.price,
-            products: []
-          };
-        }
-        
-        // Thêm sản phẩm vào nhóm tương ứng
-        productsByType[productType_code].products.push({
-          product_id: product.product_id,
-          product_code: product.product_code,
-          product_name: product.product_name,
-          size: product.size,
-          color: product.color,
-          quantity: product.quantity,
-          status: product.status
+        const [products] = await pool.query(`
+            SELECT p.*, pt.productType_name, pt.price, 
+                   c.category_name, c.category_code
+            FROM Product p
+            JOIN ProductType pt ON p.productType_code = pt.productType_code
+            JOIN Category c ON pt.category_code = c.category_code
+            ORDER BY p.product_name
+        `);
+
+        const productsByType = {};
+
+        products.forEach(product => {
+            const { productType_code, productType_name } = product;
+            
+            if (!productsByType[productType_code]) {
+                productsByType[productType_code] = {
+                    productType_code,
+                    productType_name,
+                    category: {
+                        category_code: product.category_code,
+                        category_name: product.category_name
+                    },
+                    price: product.price,
+                    products: []
+                };
+            }
+
+            productsByType[productType_code].products.push({
+                product_id: product.product_id,
+                product_code: product.product_code,
+                product_name: product.product_name,
+                size: product.size,
+                color: product.color,
+                quantity: product.quantity,
+                status: product.status
+            });
         });
-      });
-  
-      // 3. Chuyển đổi thành mảng và sắp xếp theo tên loại sản phẩm
-      const formattedResult = Object.values(productsByType).map(group => {
-        // Sắp xếp sản phẩm theo kích cỡ
-        const sortedProducts = group.products.sort((a, b) => {
-          const sizePriority = { 'S': 1, 'M': 2, 'L': 3, 'XL': 4, 'XXL': 5 };
-          return (sizePriority[a.size] || 99) - (sizePriority[b.size] || 99);
-        });
-        
-        return {
-          ...group,
-          products: sortedProducts,
-          total_products: sortedProducts.length,
-          total_quantity: sortedProducts.reduce((sum, product) => sum + product.quantity, 0)
-        };
-      });
-  
-      return formattedResult;
+
+        return Object.values(productsByType);
     } catch (error) {
-      console.error('Error in getAll:', error);
-      throw error;
+        console.error('Error in getAll:', error);
+        throw error;
     }
   }
 
@@ -107,40 +89,59 @@ class Product {
 
   static async create(productData) {
     try {
-      const { product_name, size, color, quantity, productType_code } = productData;
+        const { product_name, size, color, quantity, productType_code } = productData;
 
-      // Validation
-      if (!product_name || !size || !color || quantity === undefined || !productType_code) {
-        throw new Error(PRODUCT_MESSAGES.MISSING_FIELDS);
-      }
+        // Validation
+        if (!product_name || !size || !color || quantity === undefined || !productType_code) {
+            throw new Error(PRODUCT_MESSAGES.MISSING_FIELDS);
+        }
 
-      // Check if product type exists
-      const productType = await ProductType.getByCode(productType_code);
-      if (!productType) {
-        throw new Error(PRODUCT_MESSAGES.PRODUCT_TYPE_NOT_FOUND);
-      }
+        // Check if product type exists
+        const productType = await ProductType.getByCode(productType_code);
+        if (!productType) {
+            throw new Error(PRODUCT_MESSAGES.PRODUCT_TYPE_NOT_FOUND);
+        }
 
-      // Generate IDs
-      const product_id = uuidv4();
-      const product_code = await this.generateProductCode();
+        // Generate IDs
+        const product_id = uuidv4();
+        const product_code = await this.generateProductCode();
 
-      // Determine status based on quantity
-      const status = quantity > 0 ? 'instock' : 'outofstock';
+        // Determine status based on quantity
+        const status = quantity > 0 ? 'instock' : 'outofstock';
 
-      // Insert product
-      await pool.query(
-        `INSERT INTO Product (
-          product_id, product_code, product_name, size, color, 
-          quantity, status, productType_code
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
-        [product_id, product_code, product_name, size, color, quantity, status, productType_code]
-      );
+        // Insert product
+        await pool.query(
+            `INSERT INTO Product (
+                product_id, product_code, product_name, size, color, 
+                quantity, status, productType_code
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+            [product_id, product_code, product_name, size, color, quantity, status, productType_code]
+        );
 
-      // Return created product
-      return this.getByCode(product_code);
+        // Fetch product details after creation
+        const createdProduct = await this.getByCode(product_code);
+
+        return {
+            data: {
+                productType_code: productType.productType_code,
+                productType_name: productType.productType_name,
+                products: [
+                    {
+                        product_id: createdProduct.product_id,
+                        product_code: createdProduct.product_code,
+                        product_name: createdProduct.product_name,
+                        size: createdProduct.size,
+                        color: createdProduct.color,
+                        quantity: createdProduct.quantity,
+                        status: createdProduct.status
+                    }
+                ]
+            }
+        };
+
     } catch (error) {
-      console.error('Create product error:', error);
-      throw error;
+        console.error("Create product error:", error);
+        throw error;
     }
   }
 
@@ -251,7 +252,6 @@ class Product {
 
   static async getByProductType(productTypeCode) {
     try {
-      // 1. Lấy thông tin ProductType
       const [productTypeInfo] = await pool.query(`
         SELECT pt.*, c.category_name, c.category_code
         FROM ProductType pt
@@ -263,7 +263,6 @@ class Product {
         throw new Error(PRODUCT_MESSAGES.PRODUCT_TYPE_NOT_FOUND);
       }
   
-      // 2. Lấy sản phẩm theo ProductType
       const [products] = await pool.query(`
         SELECT p.*
         FROM Product p
@@ -271,7 +270,6 @@ class Product {
         ORDER BY p.size, p.color
       `, [productTypeCode]);
   
-      // 3. Format kết quả
       const result = {
         productType_code: productTypeInfo[0].productType_code,
         productType_name: productTypeInfo[0].productType_name,
@@ -321,6 +319,127 @@ class Product {
       throw error;
     }
   }
+
+  static async getByCategory(categoryCode) {
+    try {
+      // 1. Lấy thông tin Category
+      const [categoryInfo] = await pool.query(`
+        SELECT * FROM Category WHERE category_code = ?
+      `, [categoryCode]);
+  
+      if (categoryInfo.length === 0) {
+        throw new Error(PRODUCT_MESSAGES.CATEGORY_NOT_FOUND);
+      }
+  
+      // 2. Lấy các ProductType thuộc Category
+      const [productTypes] = await pool.query(`
+        SELECT pt.*
+        FROM ProductType pt
+        WHERE pt.category_code = ?
+      `, [categoryCode]);
+  
+      if (productTypes.length === 0) {
+        return {
+          category_code: categoryInfo[0].category_code,
+          category_name: categoryInfo[0].category_name,
+          productTypes: [],
+          total_product_types: 0,
+          total_products: 0,
+          total_quantity: 0
+        };
+      }
+  
+      // 3. Lấy tất cả sản phẩm thuộc các ProductType của Category
+      const productTypeIds = productTypes.map(pt => pt.productType_code);
+      const placeholders = productTypeIds.map(() => '?').join(',');
+      
+      const [products] = await pool.query(`
+        SELECT p.*, pt.productType_name, pt.price
+        FROM Product p
+        JOIN ProductType pt ON p.productType_code = pt.productType_code
+        WHERE p.productType_code IN (${placeholders})
+        ORDER BY pt.productType_name, p.size
+      `, productTypeIds);
+  
+      // 4. Nhóm sản phẩm theo loại sản phẩm
+      const productsByType = {};
+      productTypes.forEach(pt => {
+        productsByType[pt.productType_code] = {
+          productType_code: pt.productType_code,
+          productType_name: pt.productType_name,
+          price: pt.price,
+          products: []
+        };
+      });
+  
+      products.forEach(product => {
+        const { productType_code } = product;
+        
+        // Thêm sản phẩm vào nhóm tương ứng
+        productsByType[productType_code].products.push({
+          product_id: product.product_id,
+          product_code: product.product_code,
+          product_name: product.product_name,
+          size: product.size,
+          color: product.color,
+          quantity: product.quantity,
+          status: product.status
+        });
+      });
+  
+      // 5. Format kết quả
+      const formattedProductTypes = Object.values(productsByType).map(group => {
+        // Sắp xếp sản phẩm theo kích cỡ
+        const sortedProducts = group.products.sort((a, b) => {
+          const sizePriority = { 'S': 1, 'M': 2, 'L': 3, 'XL': 4, 'XXL': 5 };
+          return (sizePriority[a.size] || 99) - (sizePriority[b.size] || 99);
+        });
+        
+        return {
+          ...group,
+          products: sortedProducts,
+          total_products: sortedProducts.length,
+          total_quantity: sortedProducts.reduce((sum, product) => sum + product.quantity, 0)
+        };
+      });
+  
+      // Tính tổng số sản phẩm và số lượng
+      const totalProducts = formattedProductTypes.reduce((sum, pt) => sum + pt.total_products, 0);
+      const totalQuantity = formattedProductTypes.reduce((sum, pt) => sum + pt.total_quantity, 0);
+  
+      return {
+        category_code: categoryInfo[0].category_code,
+        category_name: categoryInfo[0].category_name,
+        productTypes: formattedProductTypes,
+        total_product_types: formattedProductTypes.length,
+        total_products: totalProducts,
+        total_quantity: totalQuantity
+      };
+    } catch (error) {
+      console.error('Error in getByCategory:', error);
+      throw error;
+    }
+  }
+
+  static async searchByName(searchQuery) {
+    try {
+        const formattedQuery = `%${searchQuery.trim()}%`;
+        console.log("🔎 SQL Query Format:", formattedQuery);
+
+        const [products] = await pool.query(`
+            SELECT * FROM Product 
+            WHERE product_name COLLATE utf8mb4_general_ci LIKE ?`,
+            [formattedQuery]
+        );
+
+        console.log("📊 Kết quả từ MySQL:", products);
+        return products.length ? products : null;
+    } catch (error) {
+        console.error("❌ Lỗi trong searchByName:", error);
+        throw error;
+    }
+}
+
 }
 
 module.exports = Product;

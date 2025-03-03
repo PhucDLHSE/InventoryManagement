@@ -31,15 +31,16 @@ class Warehouse {
         }
       }
 
-      static async getAll() {
+    static async getAll() {
         try {
             const [rows] = await pool.query(`
                 SELECT 
                     w.warehouse_id, w.warehouse_code, w.warehouse_name, w.address,
-                    u.user_code, u.fullName, u.role_id
+                    u.user_code, u.full_name, r.role_type
                 FROM Warehouse w
                 LEFT JOIN User u ON w.warehouse_code = u.warehouse_code
-                ORDER BY w.warehouse_name, u.role_id
+                LEFT JOIN Role r ON u.role_id = r.role_id
+                ORDER BY w.warehouse_name, r.role_type
             `);
     
             const warehouseMap = new Map();
@@ -57,8 +58,8 @@ class Warehouse {
                 if (row.user_code) {
                     warehouseMap.get(row.warehouse_code).users.push({
                         user_code: row.user_code,
-                        fullName: row.fullName,
-                        role: row.role_id === 'MA2' ? 'Manager' : 'Staff'
+                        full_name: row.full_name,
+                        role_type: row.role_type
                     });
                 }
             });
@@ -68,19 +69,52 @@ class Warehouse {
             console.error('Error in getAll:', error);
             throw error;
         }
-    }
+      }
     
-
-
-  static async getByCode(warehouseCode) {
-    const [rows] = await pool.query(
-      'SELECT * FROM Warehouse WHERE warehouse_code = ?',
-      [warehouseCode]
-    );
-    return rows[0];
-  }
-
-  static async create(warehouseData) {
+    static async getByCode(warehouse_code) {
+      try {
+          const [warehouseResult] = await pool.query(`
+              SELECT warehouse_id, warehouse_code, warehouse_name, address
+              FROM Warehouse
+              WHERE warehouse_code = ?
+          `, [warehouse_code]);
+  
+          if (warehouseResult.length === 0) {
+              throw new Error("Kho không tồn tại!");
+          }
+  
+          const warehouse = warehouseResult[0];
+  
+          const [managerResult] = await pool.query(`
+              SELECT u.user_id, u.user_code, u.full_name, u.email
+              FROM User u
+              JOIN Role r ON u.role_id = r.role_id
+              WHERE u.warehouse_code = ? AND r.role_type = 'MANAGER'
+          `, [warehouse_code]);
+  
+          const manager = managerResult.length > 0 ? managerResult[0] : null;
+  
+          const [staffResults] = await pool.query(`
+              SELECT u.user_id, u.user_code, u.full_name, u.email
+              FROM User u
+              JOIN Role r ON u.role_id = r.role_id
+              WHERE u.warehouse_code = ? AND r.role_type = 'STAFF'
+          `, [warehouse_code]);
+  
+          return {
+                  ...warehouse,
+                  ASSIGNED:{
+                      manager,
+                      staffs: staffResults
+                    }
+                };
+              } catch (error) {
+                console.error("Error in getWarehouseByCode:", error);
+                throw error;
+              }
+        }
+  
+    static async create(warehouseData) {
     try {
       const { warehouse_name, address } = warehouseData;
 
@@ -116,9 +150,9 @@ class Warehouse {
       console.error('Create warehouse error:', error);
       throw error;
     }
-  }
+      }
 
-  static async update(warehouseCode, warehouseData) {
+    static async update(warehouseCode, warehouseData) {
     try {
       const { warehouse_name, address } = warehouseData;
       const updateFields = [];
@@ -168,9 +202,9 @@ class Warehouse {
       console.error('Update warehouse error:', error);
       throw error;
     }
-  }
+      }
 
-  static async delete(warehouseCode) {
+    static async delete(warehouseCode) {
     try {
       // Check if warehouse exists
       const warehouse = await this.getByCode(warehouseCode);
@@ -207,7 +241,7 @@ class Warehouse {
       console.error('Delete warehouse error:', error);
       throw error;
     }
-  }
+      }
 }
 
 module.exports = Warehouse;

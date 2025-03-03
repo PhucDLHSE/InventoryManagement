@@ -1,10 +1,14 @@
 const express = require('express');
 const router = express.Router();
 const userController = require('../controllers/userController');
-const { validateCreateUser } = require('../middleware/validateUser');
+const { validateCreateUser, validateUpdateUser } = require('../middleware/validateUser');
 const { verifyToken, verifyAdmin } = require('../middleware/authMiddleware');
 
-router.use(verifyToken, verifyAdmin);
+// Các route dưới đây yêu cầu xác thực token
+router.use(verifyToken);
+
+// Các route yêu cầu quyền Admin
+router.use(verifyAdmin);
 
 /**
  * @swagger
@@ -34,13 +38,13 @@ router.use(verifyToken, verifyAdmin);
  *                     properties:
  *                       role_id:
  *                         type: string
- *                         example: "AD1"
+ *                         example: "AD"
  *                       role_name:
  *                         type: string
- *                         example: "admin"
+ *                         example: "Admin"
  *                       user_code:
  *                         type: string
- *                         example: "DF01" 
+ *                         example: "AD0001" 
  *                       user_name:
  *                         type: string
  *                         example: "admin1"
@@ -70,6 +74,8 @@ router.use(verifyToken, verifyAdmin);
  *                         nullable: true
  *       401:
  *         description: Không có quyền truy cập
+ *       403:
+ *         description: Không đủ quyền hạn
  */
 router.get('/', userController.getAllUsers);
 
@@ -106,10 +112,10 @@ router.get('/', userController.getAllUsers);
 *                   properties:
 *                     role_id:
 *                       type: string
-*                       example: "MA2"
+*                       example: "MA"
 *                     role_name:
 *                       type: string
-*                       example: "manager"
+*                       example: "Warehouse Manager"
 *                     user_code:
 *                       type: string
 *                       example: "MA0001"
@@ -118,7 +124,7 @@ router.get('/', userController.getAllUsers);
 *                       example: "phuchoang"
 *                     fullName:
 *                       type: string
-*                       example: "QL"
+*                       example: "Hoang Phuc"
 *                     email:
 *                       type: string
 *                       example: "abc@gmail.com"
@@ -142,10 +148,13 @@ router.get('/', userController.getAllUsers);
 *                       nullable: true
 *       401:
 *         description: Không có quyền truy cập
+*       403:
+*         description: Không đủ quyền hạn
 *       404:
 *         description: Không tìm thấy người dùng
 */
 router.get('/:code', userController.getUserByCode);
+
 /**
 * @swagger
 * /api/users:
@@ -163,27 +172,30 @@ router.get('/:code', userController.getUserByCode);
 *           schema:
 *             type: object
 *             required:
-*               - role_id
+*               - role_type
 *               - user_name  
 *               - fullName
 *               - email
 *               - password
 *             properties:
-*               role_id:
+*               role_type:
 *                 type: string
-*                 example: "MA2"
+*                 example: "MANAGER"
 *               user_name:
 *                 type: string
 *                 example: "phuchoang"
 *               fullName:
 *                 type: string
-*                 example: "QL"
+*                 example: "Hoang Phuc"
 *               email:
 *                 type: string
 *                 example: "abc@gmail.com"
 *               password:
 *                 type: string
-*                 example: "123"
+*                 example: "123456"
+*               warehouse_code:
+*                 type: string
+*                 example: ""
 *     responses:
 *       201:
 *         description: Tạo người dùng thành công
@@ -200,10 +212,10 @@ router.get('/:code', userController.getUserByCode);
 *                   properties:
 *                     role_id:
 *                       type: string
-*                       example: "MA2"
+*                       example: "MA"
 *                     role_name:
 *                       type: string
-*                       example: "manager"
+*                       example: "Warehouse Manager"
 *                     user_code:
 *                       type: string
 *                       example: "MA0001"
@@ -212,7 +224,7 @@ router.get('/:code', userController.getUserByCode);
 *                       example: "phuchoang"
 *                     fullName:
 *                       type: string
-*                       example: "QL"
+*                       example: "Hoang Phuc"
 *                     email:
 *                       type: string
 *                       example: "abc@gmail.com"
@@ -238,6 +250,8 @@ router.get('/:code', userController.getUserByCode);
 *         description: Dữ liệu đầu vào không hợp lệ
 *       401:
 *         description: Không có quyền truy cập
+*       403:
+*         description: Không đủ quyền hạn
 *       409:
 *         description: Email hoặc username đã tồn tại
 */
@@ -267,12 +281,12 @@ router.post('/', validateCreateUser, userController.createUser);
 *           schema:
 *             type: object
 *             properties:
-*               role_id:
-*                 type: string
-*                 example: "ST3"
 *               fullName:
 *                 type: string
-*                 example: "Anh Nhân Viên"
+*                 example: "Hoang Phuc Update"
+*               email:
+*                 type: string
+*                 example: "update@gmail.com"
 *               warehouse_code:
 *                 type: string
 *                 example: ""
@@ -292,22 +306,22 @@ router.post('/', validateCreateUser, userController.createUser);
 *                   properties:
 *                     role_id:
 *                       type: string
-*                       example: "AD1"
+*                       example: "AD"
 *                     role_name:
 *                       type: string
-*                       example: "admin"
+*                       example: "Admin"
 *                     user_code:
 *                       type: string
 *                       example: "AD0001"
 *                     user_name:
 *                       type: string
-*                       example: "hoangnphuc"
+*                       example: "admin"
 *                     fullName:
 *                       type: string
-*                       example: "Anh Nhân Viên"
+*                       example: "Hoang Phuc Update"
 *                     email:
 *                       type: string
-*                       example: "quanly@gmail.com"
+*                       example: "update@gmail.com"
 *                     status:
 *                       type: string
 *                       example: "inactive"
@@ -330,10 +344,12 @@ router.post('/', validateCreateUser, userController.createUser);
 *         description: Dữ liệu đầu vào không hợp lệ
 *       401:
 *         description: Không có quyền truy cập
+*       403:
+*         description: Không đủ quyền hạn
 *       404:
 *         description: Không tìm thấy người dùng
 */
-router.put('/:code', userController.updateUser);
+router.put('/:code', validateUpdateUser, userController.updateUser);
 
 /**
 * @swagger
@@ -342,7 +358,7 @@ router.put('/:code', userController.updateUser);
 *     tags:
 *       - Users Controller
 *     summary: Xóa người dùng
-*     description: Xóa người dùng dựa trên mã và chuyển dữ liệu liên quan cho user khác
+*     description: Xóa người dùng dựa trên mã
 *     security:
 *       - bearerAuth: []
 *     parameters:
@@ -365,33 +381,35 @@ router.put('/:code', userController.updateUser);
 *                   example: true
 *                 message:
 *                   type: string
-*                   example: "User đã được xóa thành công. Các dữ liệu liên quan đã được chuyển cho user khác trong cùng kho."
+*                   example: "Xóa người dùng thành công!"
 *                 data:
 *                   type: object
 *                   properties:
 *                     user_code:
 *                       type: string
-*                       example: "US0003"
+*                       example: "ST0003"
 *                     role_id:
 *                       type: string
-*                       example: "ST3"
+*                       example: "ST"
 *                     user_name:
 *                       type: string
 *                       example: "staff1"
 *                     fullName:
 *                       type: string
-*                       example: "Staff Chuẩn bị cắt"
+*                       example: "Staff User"
 *                     email:
 *                       type: string
 *                       example: "staff1@gmail.com"
 *                     warehouse_code:
 *                       type: string
-*                       example: "EA0002"
+*                       example: "WH0002"
 *                     role_name:
 *                       type: string
-*                       example: "staff"
+*                       example: "Staff"
 *       401:
 *         description: Không có quyền truy cập
+*       403:
+*         description: Không đủ quyền hạn
 *       404:
 *         description: Không tìm thấy người dùng
 */
@@ -444,10 +462,10 @@ router.delete('/:code', userController.deleteUser);
 *                   properties:
 *                     role_id:
 *                       type: string
-*                       example: "MA2"
+*                       example: "MA"
 *                     role_name:
 *                       type: string
-*                       example: "manager"
+*                       example: "Warehouse Manager"
 *                     user_code: 
 *                       type: string
 *                       example: "MA0001"
@@ -456,7 +474,7 @@ router.delete('/:code', userController.deleteUser);
 *                       example: "phuchoang"
 *                     fullName:
 *                       type: string
-*                       example: "QL"
+*                       example: "Hoang Phuc"
 *                     email:
 *                       type: string
 *                       example: "abc@gmail.com"
@@ -482,9 +500,11 @@ router.delete('/:code', userController.deleteUser);
 *         description: Dữ liệu đầu vào không hợp lệ
 *       401:
 *         description: Không có quyền truy cập
+*       403:
+*         description: Không đủ quyền hạn
 *       404:
 *         description: Không tìm thấy người dùng
 */
-router.put('/:code/warehouse', userController.updateUser);
+router.put('/:code/warehouse', validateUpdateUser, userController.updateUser);
 
-module.exports = router;
+module.exports = router

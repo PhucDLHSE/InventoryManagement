@@ -100,7 +100,32 @@ const productController = {
       PRODUCT_MESSAGES.UPDATE_STOCK_SUCCESS,
       updatedProduct
     );
-  })
+  }),
+
+  getProductsByCategory: asyncHandler(async (req, res) => {
+    const products = await Product.getByCategory(req.params.categoryCode);
+    return sendResponse(
+      res,
+      HTTP_STATUS.OK,
+      true,
+      PRODUCT_MESSAGES.GET_BY_CATEGORY_SUCCESS,
+      products
+    );
+  }),
+
+  searchProducts: asyncHandler(async (req, res) => {
+    console.log("🔍 Query nhận được:", req.query.q);
+    if (!req.query.q) return sendResponse(res, 400, false, "Thiếu từ khóa tìm kiếm");
+
+    const products = await Product.searchByName(req.query.q);
+    console.log("📊 Kết quả tìm kiếm:", products);
+
+    if (!products) return sendResponse(res, 404, false, "Không tìm thấy sản phẩm");
+    return sendResponse(res, 200, true, "Tìm kiếm thành công", products);
+}),
+
+
+
 };
 
 module.exports = productController;

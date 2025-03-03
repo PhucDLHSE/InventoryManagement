@@ -2,40 +2,38 @@ const pool = require('../config/dbConfig');
 const ROLES  = require('../constants/roles');
 const { STATUS } = require('../constants/status');
 const { USER_MESSAGES } = require('../constants/messages');
+const { ROLE_TYPES } = require('../constants/roles');
 const { generateSelectUserFields, generateSelectUserWithPassword } = require('../utils/queryUtils');
 const { v4: uuidv4 } = require('uuid');
 
 class User {
-  static async generateUserCode(role_id) {
+  static async generateUserCode(role_type) {
     let prefix = '';
-    switch (role_id) {
-      case ROLES.ADMIN:
+    switch (role_type) {
+      case ROLE_TYPES.ADMIN:
         prefix = 'AD';
         break;
-      case ROLES.MANAGER:
+      case ROLE_TYPES.MANAGER:
         prefix = 'MA';
         break;
-      case ROLES.STAFF:
+      case ROLE_TYPES.STAFF:
         prefix = 'ST';
         break;
       default:
-        throw new Error(USER_MESSAGES.ROLE_INVALID);
+        throw new Error(USER_MESSAGES.ROLE_TYPE_INVALID);
     }
-
-    // Lấy mã code cuối cùng của role tương ứng
+  
     const [lastCode] = await pool.query(
       'SELECT user_code FROM User WHERE user_code LIKE ? ORDER BY user_code DESC LIMIT 1',
       [`${prefix}%`]
     );
-
+  
     let newNumber = 1;
     if (lastCode[0]) {
-      // Lấy 4 số cuối của mã code cuối cùng và tăng lên 1
       const lastNumber = parseInt(lastCode[0].user_code.slice(-4));
       newNumber = lastNumber + 1;
     }
-
-    // Format số thành chuỗi 4 chữ số (vd: 0001, 0012,...)
+  
     const formattedNumber = newNumber.toString().padStart(4, '0');
     return `${prefix}${formattedNumber}`;
   }
@@ -46,13 +44,43 @@ class User {
              ${generateSelectUserFields()}
               ORDER BY u.created_at DESC
         `);
+
         console.log('Query result:', rows); 
-        return rows;
+
+        // Chuẩn hóa dữ liệu trả về
+        const formattedResponse = {
+            success: true,
+            users: rows.map(user => ({
+                user_id: user.user_id,
+                user_code: user.user_code,
+                user_name: user.user_name,
+                full_name: user.full_name,
+                email: user.email,
+                role: {
+                    role_id: user.role_id,
+                    role_name: user.role_name,
+                    role_type: user.role_type
+                },
+                status: user.status,
+                warehouse: user.warehouse_code
+                    ? {
+                        warehouse_code: user.warehouse_code,
+                        warehouse_name: user.warehouse_name,
+                        address: user.address
+                    }
+                    : null,
+                created_at: new Date(user.created_at).toISOString(),
+                updated_at: new Date(user.updated_at).toISOString()
+            }))
+        };
+
+        return formattedResponse;
     } catch (error) {
         console.error('Error in getAll:', error); 
         throw error;
     }
 }
+
 
   static async getByCode(userCode) {
     const [rows] = await pool.query(`
@@ -78,11 +106,11 @@ class User {
         return rows[0];
     }
   
-    static async countUsersByRole(warehouse_code, role_id) {
+  static async countUsersByRole(warehouse_code, role_type) {
       try {
           const [result] = await pool.query(
-              'SELECT COUNT(*) as count FROM User WHERE warehouse_code = ? AND role_id = ?',
-              [warehouse_code, role_id]
+              'SELECT COUNT(*) as count FROM User WHERE warehouse_code = ? AND role_type = ?',
+              [warehouse_code, role_type]
           );
           return result[0].count;
       } catch (error) {
@@ -93,56 +121,67 @@ class User {
   
 
   // Create
-    static async create(userData) {
-    const user_id = uuidv4();
+  static async create(userData) {
     try {
-        const { 
-            role_id, 
-            user_name, 
-            fullName, 
-            email, 
-            password, 
-            warehouse_code = null 
-        } = userData;
-
-        // Validate role_id
-        const validRoles = Object.values(ROLES);
-        if (!role_id || !validRoles.includes(role_id)) {
-            throw new Error(USER_MESSAGES.ROLE_INVALID);
-        }
-
-        const userExists = await this.findByUsername(user_name);
-        if (userExists) {
-            throw new Error(USER_MESSAGES.USERNAME_EXISTS);
-        }
-
-        // Generate user_code
-        const user_code = await this.generateUserCode(role_id);
-        
-        // Generate UUID for user_id
-        const user_id = `U${Date.now()}`; 
-
-        // Insert user
-        await pool.query(
-            `INSERT INTO User (
-                user_id, user_code, role_id, user_name, 
-                fullName, email, password, warehouse_code
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
-            [user_id, user_code, role_id, user_name, fullName, email, password, warehouse_code]
-        );
-
-        const [newUser] = await pool.query(
-            `${generateSelectUserFields()} WHERE u.user_code = ?`, 
-            [user_code]
-        );
-        return newUser[0];
-
+      // Check required fields (chắc chắn tên trường khớp với request)
+      const requiredFields = ['role_type', 'user_name', 'full_name', 'email', 'password'];
+      const missingFields = requiredFields.filter(field => !userData[field]);
+      
+      if (missingFields.length > 0) {
+        throw new Error(`Missing required fields: ${missingFields.join(', ')}`);
+      }
+      
+      const { role_type, user_name, full_name, email, password, warehouse_code = null } = userData;
+      
+      // Validate role_type
+      if (!Object.values(ROLE_TYPES).includes(role_type)) {
+        throw new Error(USER_MESSAGES.ROLE_TYPE_INVALID);
+      }
+  
+      // Get role_id from role_type
+      const [roleResult] = await pool.query(
+        'SELECT role_id FROM Role WHERE role_type = ?',
+        [role_type]
+      );
+      
+      if (!roleResult[0]) {
+        throw new Error(USER_MESSAGES.ROLE_TYPE_INVALID);
+      }
+      
+      const role_id = roleResult[0].role_id;
+  
+      // Check if username exists
+      const userExists = await this.findByUsername(user_name);
+      if (userExists) {
+        throw new Error(USER_MESSAGES.USERNAME_EXISTS);
+      }
+  
+      // Generate user_code based on role_type
+      const user_code = await this.generateUserCode(role_type);
+      
+      // Generate UUID for user_id
+      const user_id = uuidv4();
+  
+      // Set status based on warehouse_code
+      const status = warehouse_code ? STATUS.ACTIVE : STATUS.INACTIVE;
+  
+      // Insert user
+      await pool.query(
+        `INSERT INTO User (
+          user_id, user_code, role_id, user_name, 
+          full_name, email, password, warehouse_code, 
+          status
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        [user_id, user_code, role_id, user_name, full_name, email, password, warehouse_code, status]
+      );
+  
+      // Return created user
+      return this.getByCode(user_code);
     } catch (error) {
-        console.error("Create user error:", error);
-        throw error;
+      console.error("Create user error:", error);
+      throw error;
     }
   }
-
   //Update
   static async update(userCode, userData) {
     const updateFields = [];
@@ -155,35 +194,51 @@ class User {
     }
 
     // Kiểm tra nếu đang cập nhật warehouse_code
-    if (userData.warehouse_code !== undefined) {
-        const { warehouse_code } = userData;
+    // Kiểm tra số lượng Manager và Staff trong warehouse
+if (userData.warehouse_code !== undefined) {
+  const { warehouse_code } = userData;
 
-        // Nếu user có warehouse_code mới, kiểm tra số lượng Manager & Staff
-        if (warehouse_code) {
-            const managerCount = await User.countUsersByRole(warehouse_code, 'MA2');
-            const staffCount = await User.countUsersByRole(warehouse_code, 'ST3');
+  if (warehouse_code) {
+      // Truy vấn số lượng Manager trong warehouse
+      const [managerCountResult] = await pool.query(`
+          SELECT COUNT(*) as count 
+          FROM User u
+          JOIN Role r ON u.role_id = r.role_id
+          WHERE u.warehouse_code = ? AND r.role_type = 'MANAGER'
+      `, [warehouse_code]);
+      const managerCount = managerCountResult[0].count;
 
-            // Nếu user là Manager và warehouse đã có 1 Manager khác -> Lỗi
-            if (existingUser.role_id === 'MA2' && managerCount >= 1) {
-                throw new Error("Nhà kho này đã có người quản lý!");
-            }
+      // Truy vấn số lượng Staff trong warehouse
+      const [staffCountResult] = await pool.query(`
+          SELECT COUNT(*) as count 
+          FROM User u
+          JOIN Role r ON u.role_id = r.role_id
+          WHERE u.warehouse_code = ? AND r.role_type = 'STAFF'
+      `, [warehouse_code]);
+      const staffCount = staffCountResult[0].count;
 
-            // Nếu user là Staff và warehouse đã có 5 Staff -> Lỗi
-            if (existingUser.role_id === 'ST3' && staffCount >= 5) {
-                throw new Error("Đã đạt giới hạn nhân viên trong nhà kho này!");
-            }
-        }
+      // Kiểm tra nếu user là Manager và warehouse đã có 1 Manager khác -> Lỗi
+      if (existingUser.role_type === 'MANAGER' && managerCount >= 1) {
+          throw new Error("Nhà kho này đã có người quản lý!");
+      }
 
-        updateFields.push('warehouse_code = ?');
-        values.push(warehouse_code || null);
+      // Kiểm tra nếu user là Staff và warehouse đã có 3 Staff -> Lỗi
+      if (existingUser.role_type === 'STAFF' && staffCount >= 3) {
+          throw new Error("Đã đạt giới hạn nhân viên trong nhà kho này!");
+      }
+  }
 
-        updateFields.push('status = ?');
-        values.push(warehouse_code ? 'active' : 'inactive');
-    }
+  updateFields.push('warehouse_code = ?');
+  values.push(warehouse_code || null);
 
-    if (userData.fullName !== undefined) {
-        updateFields.push('fullName = ?');
-        values.push(userData.fullName);
+  updateFields.push('status = ?');
+  values.push(warehouse_code ? 'active' : 'inactive');
+}
+
+
+    if (userData.full_name !== undefined) {
+        updateFields.push('full_name = ?');
+        values.push(userData.full_name);
     }
     if (userData.email !== undefined) {
         updateFields.push('email = ?');
@@ -215,7 +270,6 @@ class User {
     return updatedUser[0];
   }
 
-
   // Delete
 static async delete(userCode) {
   const [user] = await pool.query(`${generateSelectUserFields()} WHERE u.user_code = ?`, [userCode]);
@@ -224,18 +278,17 @@ static async delete(userCode) {
   }
 
   // Kiểm tra nếu user là admin cuối cùng
-  if (user[0].role_id === ROLES.ADMIN) { 
-    const [adminCount] = await pool.query(
-      'SELECT COUNT(*) as count FROM User WHERE role_id = ?',
-      [ROLES.ADMIN]
-    );
-  
-    if (adminCount[0].count <= 1) {
-      throw new Error(USER_MESSAGES.LAST_ADMIN);
-    }
-  }
+  if (user[0].role_type === ROLE_TYPES.ADMIN) { 
+  const [adminCount] = await pool.query(
+    'SELECT COUNT(*) as count FROM User u JOIN Role r ON u.role_id = r.role_id WHERE r.role_type = ?',
+    [ROLE_TYPES.ADMIN]
+  );
 
-  // Chỉ kiểm tra warehouse nếu user được gán warehouse
+  if (adminCount[0].count <= 1) {
+    throw new Error(USER_MESSAGES.LAST_ADMIN);
+  }
+}
+
   if (user[0].warehouse_code) {
     const [warehouseUsers] = await pool.query(
       `SELECT COUNT(*) as count 
