@@ -6,12 +6,9 @@ const ProductType = require('./productTypeModel');
 class Product {
   static async generateProductCode() {
     try {
-      // Lấy mã code cuối cùng
       const [lastCode] = await pool.query(
         'SELECT product_code FROM Product ORDER BY product_code DESC LIMIT 1'
       );
-
-      // Tạo mã code mới
       let newCode = 'PR0001';
       if (lastCode[0]) {
         const lastNumber = parseInt(lastCode[0].product_code.substring(2));
@@ -89,61 +86,76 @@ class Product {
 
   static async create(productData) {
     try {
-        const { product_name, size, color, quantity, productType_code } = productData;
+        const { product_name, size, color, quantity, productType_code, created_by } = productData;
 
-        // Validation
-        if (!product_name || !size || !color || quantity === undefined || !productType_code) {
+        // 1️⃣ Kiểm tra dữ liệu đầu vào
+        if (!product_name || !size || !color || quantity === undefined || !productType_code || !created_by) {
             throw new Error(PRODUCT_MESSAGES.MISSING_FIELDS);
         }
 
-        // Check if product type exists
-        const productType = await ProductType.getByCode(productType_code);
-        if (!productType) {
+        // 2️⃣ Kiểm tra loại sản phẩm có tồn tại không
+        const [productType] = await pool.query(`
+            SELECT * FROM ProductType WHERE productType_code = ?`, 
+            [productType_code]
+        );
+
+        if (productType.length === 0) {
             throw new Error(PRODUCT_MESSAGES.PRODUCT_TYPE_NOT_FOUND);
         }
 
-        // Generate IDs
+        // 3️⃣ Tạo sản phẩm trong bảng Product (Số lượng ban đầu = 0)
         const product_id = uuidv4();
         const product_code = await this.generateProductCode();
 
-        // Determine status based on quantity
-        const status = quantity > 0 ? 'instock' : 'outofstock';
-
-        // Insert product
-        await pool.query(
-            `INSERT INTO Product (
-                product_id, product_code, product_name, size, color, 
-                quantity, status, productType_code
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
-            [product_id, product_code, product_name, size, color, quantity, status, productType_code]
+        await pool.query(`
+            INSERT INTO Product (product_id, product_code, product_name, size, color, quantity, productType_code)
+            VALUES (?, ?, ?, ?, ?, ?, ?)`,
+            [product_id, product_code, product_name, size, color, 0, productType_code] 
         );
 
-        // Fetch product details after creation
-        const createdProduct = await this.getByCode(product_code);
+        // 4️⃣ Tạo phiếu nhập kho (ExchangeNote) ở trạng thái `pending`
+        const exchangeNoteId = uuidv4();  
+
+        await pool.query(`
+          INSERT INTO ExchangeNote (exchangeNote_id, warehouse_code, type, status, created_by, date)
+          VALUES (?, 'WH0001', 'import', 'pending', ?, NOW())`, 
+          [exchangeNoteId, created_by]
+      );
+
+        // 5️⃣ Lưu sản phẩm vào `NoteItem`
+        const noteItemId = uuidv4();
+        await pool.query(`
+            INSERT INTO NoteItem (noteItem_id, noteItem_code, product_code, exchangeNote_id, quantity)
+            VALUES (?, ?, ?, ?, ?)`, 
+            [noteItemId, `NI${Math.floor(Math.random() * 10000).toString().padStart(4, '0')}`, product_code, exchangeNoteId, quantity]
+        );
 
         return {
-            data: {
-                productType_code: productType.productType_code,
-                productType_name: productType.productType_name,
-                products: [
-                    {
-                        product_id: createdProduct.product_id,
-                        product_code: createdProduct.product_code,
-                        product_name: createdProduct.product_name,
-                        size: createdProduct.size,
-                        color: createdProduct.color,
-                        quantity: createdProduct.quantity,
-                        status: createdProduct.status
-                    }
-                ]
-            }
-        };
-
+          success: true,
+          message: "Tạo sản phẩm thành công và phiếu nhập kho đã được tạo (chờ duyệt)",
+          data: {
+              product: {
+                  product_id,
+                  product_code,
+                  product_name,
+                  size,
+                  color,
+                  quantity,
+                  productType_code
+              },
+              exchangeNote: {
+                  exchangeNote_id: exchangeNoteId,
+                  warehouse_code: "WH0001",
+                  status: "pending",
+                  created_by
+              }
+          }
+      };
     } catch (error) {
-        console.error("Create product error:", error);
+        console.error("Lỗi khi tạo sản phẩm:", error);
         throw error;
     }
-  }
+}
 
   static async update(productCode, productData) {
     try {
@@ -151,7 +163,6 @@ class Product {
       const updateFields = [];
       const values = [];
 
-      // Build update fields
       if (product_name !== undefined) {
         updateFields.push('product_name = ?');
         values.push(product_name);
@@ -171,7 +182,6 @@ class Product {
         updateFields.push('quantity = ?');
         values.push(quantity);
         
-        // Automatically update status based on quantity
         if (status === undefined) {
           updateFields.push('status = ?');
           values.push(quantity > 0 ? 'instock' : 'outofstock');
@@ -184,7 +194,6 @@ class Product {
       }
 
       if (productType_code !== undefined) {
-        // Check if product type exists
         const productType = await ProductType.getByCode(productType_code);
         if (!productType) {
           throw new Error(PRODUCT_MESSAGES.PRODUCT_TYPE_NOT_FOUND);
@@ -197,10 +206,8 @@ class Product {
         throw new Error(PRODUCT_MESSAGES.NO_UPDATE_DATA);
       }
 
-      // Add productCode to values
       values.push(productCode);
 
-      // Execute update
       const query = `
         UPDATE Product 
         SET ${updateFields.join(', ')}
@@ -212,7 +219,6 @@ class Product {
         throw new Error(PRODUCT_MESSAGES.NOT_FOUND);
       }
 
-      // Return updated product
       return this.getByCode(productCode);
     } catch (error) {
       console.error('Update product error:', error);
@@ -222,13 +228,10 @@ class Product {
 
   static async delete(productCode) {
     try {
-      // Check if product exists
       const product = await this.getByCode(productCode);
       if (!product) {
         throw new Error(PRODUCT_MESSAGES.NOT_FOUND);
       }
-
-      // Check if product is being used in Stock
       const [stockCount] = await pool.query(
         'SELECT COUNT(*) as count FROM Stock WHERE product_code = ?',
         [productCode]
@@ -237,7 +240,6 @@ class Product {
         throw new Error(PRODUCT_MESSAGES.USED_IN_STOCK);
       }
 
-      // Delete product
       const [result] = await pool.query(
         'DELETE FROM Product WHERE product_code = ?',
         [productCode]
@@ -438,6 +440,42 @@ class Product {
         console.error("❌ Lỗi trong searchByName:", error);
         throw error;
     }
+  }
+
+  static async updateProductStatus(product_code) {
+    try {
+        const [product] = await pool.query(`
+            SELECT quantity FROM Product WHERE product_code = ?`, [product_code]);
+
+        if (product.length > 0) {
+            const newStatus = product[0].quantity > 0 ? 'instock' : 'outofstock';
+            await pool.query(`
+                UPDATE Product SET status = ? WHERE product_code = ?`, [newStatus, product_code]);
+        }
+    } catch (error) {
+        console.error("Lỗi khi cập nhật trạng thái sản phẩm:", error);
+        throw error;
+    }
+}
+
+static async updateProductQuantity(product_code) {
+  try {
+      const [totalQuantity] = await pool.query(`
+          SELECT COALESCE(SUM(quantity), 0) AS total_quantity FROM Stock WHERE product_code = ?`,
+          [product_code]
+      );
+
+      const newQuantity = totalQuantity[0].total_quantity;
+      const newStatus = newQuantity > 0 ? 'instock' : 'outofstock';
+
+      await pool.query(`
+          UPDATE Product SET quantity = ?, status = ? WHERE product_code = ?`,
+          [newQuantity, newStatus, product_code]
+      );
+  } catch (error) {
+      console.error("Lỗi khi cập nhật tổng số lượng sản phẩm:", error);
+      throw error;
+  }
 }
 
 }

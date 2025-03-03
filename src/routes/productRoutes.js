@@ -6,16 +6,16 @@ const { verifyToken, verifyAdmin } = require('../middleware/authMiddleware');
 
 router.get('/search', productController.searchProducts);
 
-// Admin/Manager-only routes
+// CRUD for products
 router.post('/', verifyToken, verifyAdmin, productController.createProduct);
 router.put('/:code', verifyToken, verifyAdmin, productController.updateProduct);
 router.delete('/:code', verifyToken, verifyAdmin, productController.deleteProduct);
 router.put('/:code/stock', verifyToken, verifyAdmin, productController.updateProductStock);
 
-// Routes accessible to all authenticated users
-router.get('/', verifyToken, productController.getAllProducts);
-router.get('/:code', verifyToken, productController.getProductByCode);
-router.get('/product-type/:productTypeCode', verifyToken, productController.getProductsByProductType);
-router.get('/category/:categoryCode', verifyToken, productController.getProductsByCategory);
+// Get products by different criteria
+router.get('/', productController.getAllProducts);
+router.get('/:code', productController.getProductByCode);
+router.get('/product-type/:productTypeCode', productController.getProductsByProductType);
+router.get('/category/:categoryCode', productController.getProductsByCategory);
 
 module.exports = router;

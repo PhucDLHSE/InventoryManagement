@@ -1,4 +1,3 @@
-// src/controllers/productController.js
 const Product = require('../models/productModel');
 const { PRODUCT_MESSAGES } = require('../constants/messages');
 const HTTP_STATUS = require('../utils/httpStatus');
@@ -114,17 +113,21 @@ const productController = {
   }),
 
   searchProducts: asyncHandler(async (req, res) => {
-    console.log("🔍 Query nhận được:", req.query.q);
-    if (!req.query.q) return sendResponse(res, 400, false, "Thiếu từ khóa tìm kiếm");
+    if (!req.query.q) {
+        return sendResponse(res, 400, false, "Thiếu từ khóa tìm kiếm");
+    }
 
     const products = await Product.searchByName(req.query.q);
-    console.log("📊 Kết quả tìm kiếm:", products);
 
-    if (!products) return sendResponse(res, 404, false, "Không tìm thấy sản phẩm");
-    return sendResponse(res, 200, true, "Tìm kiếm thành công", products);
-}),
+    if (!products || products.length === 0) {
+        return sendResponse(res, 404, false, "Không tìm thấy sản phẩm");
+    }
 
-
+    return sendResponse(res, 200, true, "Tìm kiếm thành công", {
+        total_results: products.length, 
+        products
+    });
+})
 
 };
 

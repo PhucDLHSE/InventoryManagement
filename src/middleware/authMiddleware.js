@@ -66,24 +66,17 @@ exports.verifyAdmin = (req, res, next) => {
 
 // Middleware kiểm tra quyền Manager
 exports.verifyManager = (req, res, next) => {
-  // Kiểm tra xem middleware trước đó đã xác thực token chưa
+  console.log("🛠️ Kiểm tra quyền:", req.user); // Debugging
+
   if (!req.user) {
-    return res.status(401).json({
-      success: false,
-      message: 'Không được phép truy cập'
-    });
+    return res.status(401).json({ success: false, message: "Không được phép truy cập" });
   }
 
-  // Kiểm tra quyền Manager
-  if (req.user.role === ROLE_TYPES.MANAGER) {
+  if (req.user.role === ROLE_TYPES.ADMIN || req.user.role === ROLE_TYPES.MANAGER) {
     return next();
   }
 
-  // Nếu không phải Manager, trả về lỗi 403 Forbidden
-  return res.status(403).json({
-    success: false,
-    message: 'Bạn không có quyền thực hiện hành động này'
-  });
+  return res.status(403).json({ success: false, message: "Bạn không có quyền thực hiện hành động này" });
 };
 
 // Middleware kiểm tra quyền Staff
