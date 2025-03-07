@@ -1,4 +1,3 @@
-// src/controllers/productTypeController.js
 const ProductType = require('../models/productTypeModel');
 const { PRODUCT_TYPE_MESSAGES } = require('../constants/messages');
 const HTTP_STATUS = require('../utils/httpStatus');

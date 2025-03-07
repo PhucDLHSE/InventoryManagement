@@ -19,7 +19,6 @@ app.use('/api/warehouses', require('./src/routes/warehouseRoutes'));
 app.use('/api/categories', require('./src/routes/categoryRoutes'));
 app.use('/api/product-types', require('./src/routes/productTypeRoutes'));
 app.use('/api/products', require('./src/routes/productRoutes'));
-app.use('/api/stocks', require('./src/routes/stockRoutes'));
 app.use('/api/exchange-notes', require('./src/routes/exchangeNoteRoutes'));
 
 // Middleware log request

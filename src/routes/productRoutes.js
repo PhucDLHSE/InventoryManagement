@@ -1,21 +1,16 @@
-// src/routes/productRoutes.js
 const express = require('express');
 const router = express.Router();
 const productController = require('../controllers/productController');
-const { verifyToken, verifyAdmin } = require('../middleware/authMiddleware');
+const { verifyToken, verifyAdmin, verifyManager } = require('../middleware/authMiddleware');
 
-router.get('/search', productController.searchProducts);
+router.post('/', verifyToken, verifyManager, productController.createProduct);
+router.patch('/:code', verifyToken, verifyManager, productController.updateProduct);
+router.delete('/:code', verifyToken, verifyManager, productController.deleteProduct);
 
-// CRUD for products
-router.post('/', verifyToken, verifyAdmin, productController.createProduct);
-router.put('/:code', verifyToken, verifyAdmin, productController.updateProduct);
-router.delete('/:code', verifyToken, verifyAdmin, productController.deleteProduct);
-router.put('/:code/stock', verifyToken, verifyAdmin, productController.updateProductStock);
-
-// Get products by different criteria
-router.get('/', productController.getAllProducts);
-router.get('/:code', productController.getProductByCode);
-router.get('/product-type/:productTypeCode', productController.getProductsByProductType);
-router.get('/category/:categoryCode', productController.getProductsByCategory);
+router.get('/search', verifyToken, productController.searchProducts);
+router.get('/category/:category', verifyToken, productController.getProductByCategory);
+router.get('/productType/:productType', verifyToken, productController.getProductByProductType);
+router.get('/:code', verifyToken, productController.getProductByCode);
+router.get('/', verifyToken, productController.getAllProducts);
 
 module.exports = router;

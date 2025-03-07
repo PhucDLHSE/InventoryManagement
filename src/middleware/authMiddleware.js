@@ -103,17 +103,12 @@ exports.verifyStaff = (req, res, next) => {
 
 // Middleware kiểm tra người dùng đã được gán vào kho chưa
 exports.verifyWarehouseAssigned = (req, res, next) => {
-  // Kiểm tra xem middleware trước đó đã xác thực token chưa
   if (!req.user) {
     return res.status(401).json({
       success: false,
       message: 'Không được phép truy cập'
     });
   }
-
-  // Thực tế sẽ cần truy vấn database để kiểm tra xem người dùng đã được gán warehouse_code chưa
-  // Trong middleware này giả định thông tin warehouse_code đã nằm trong token
-  // Nếu không, bạn cần query từ database
 
   if (!req.user.warehouseCode) {
     return res.status(403).json({
@@ -123,4 +118,23 @@ exports.verifyWarehouseAssigned = (req, res, next) => {
   }
 
   next();
+};
+
+// Middleware chỉ cho phép Admin
+exports.onlyAdmin = (req, res, next) => {
+  if (!req.user) {
+    return res.status(401).json({
+      success: false,
+      message: 'Không được phép truy cập'
+    });
+  }
+
+  if (req.user.role === ROLE_TYPES.ADMIN) {
+    return next();
+  }
+
+  return res.status(403).json({
+    success: false,
+    message: 'Chỉ Admin mới có quyền thực hiện hành động này'
+  });
 };

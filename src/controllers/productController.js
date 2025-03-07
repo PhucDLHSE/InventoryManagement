@@ -5,13 +5,34 @@ const { sendResponse } = require('../utils/responseHandler');
 const asyncHandler = require('../utils/asyncHandler');
 
 const productController = {
+
+  createProduct: asyncHandler(async (req, res) => {
+    if (!req.user || !req.user.userCode) {
+      return sendResponse(
+        res,
+        HTTP_STATUS.UNAUTHORIZED,
+        false,
+        "Lỗi xác thực."
+      );
+    }
+
+    const result = await Product.create(req.body, req.user);
+    return sendResponse(
+      res,
+      HTTP_STATUS.CREATED,
+      true,
+      "Tạo sản phẩm thành công",
+      result
+    );
+  }),
+
   getAllProducts: asyncHandler(async (req, res) => {
     const products = await Product.getAll();
     return sendResponse(
       res,
       HTTP_STATUS.OK,
       true,
-      PRODUCT_MESSAGES.GET_ALL_SUCCESS,
+      "Lấy danh sách sản phẩm thành công",
       products
     );
   }),
@@ -23,112 +44,213 @@ const productController = {
         res,
         HTTP_STATUS.NOT_FOUND,
         false,
-        PRODUCT_MESSAGES.NOT_FOUND
+        "Sản phẩm không tồn tại"
       );
     }
     return sendResponse(
       res,
       HTTP_STATUS.OK,
       true,
-      PRODUCT_MESSAGES.GET_SUCCESS,
+      "Lấy sản phẩm thành công",
       product
     );
   }),
 
-  createProduct: asyncHandler(async (req, res) => {
-    const newProduct = await Product.create(req.body);
-    return sendResponse(
-      res,
-      HTTP_STATUS.CREATED,
-      true,
-      PRODUCT_MESSAGES.CREATE_SUCCESS,
-      newProduct
-    );
-  }),
-
   updateProduct: asyncHandler(async (req, res) => {
-    const updatedProduct = await Product.update(req.params.code, req.body);
+    const code = req.params.code;
+    const updateFields = req.body;
+
+    if (Object.keys(updateFields).length === 0) {
+      return sendResponse(
+        res,
+        HTTP_STATUS.BAD_REQUEST,
+        false,
+        "Không có dữ liệu"
+      );
+    }
+
+    const existingProduct = await Product.getByCode(code);
+    if (!existingProduct) {
+      return sendResponse(
+        res,
+        HTTP_STATUS.NOT_FOUND,
+        false,
+        "Không tìm thấy sản phẩm!"
+      );
+    }
+
+    let { quantity, status } = existingProduct;
+    if (updateFields.quantity !== undefined) {
+      quantity = updateFields.quantity;
+      status = quantity > 0 ? 'instock' : 'outofstock';
+    }
+    const updatedProduct = await Product.updateProduct(code, {
+      ...updateFields,
+      quantity,
+      status
+    });
+
     return sendResponse(
       res,
       HTTP_STATUS.OK,
       true,
-      PRODUCT_MESSAGES.UPDATE_SUCCESS,
+      "Cập nhật sản phẩm thành công",
       updatedProduct
     );
   }),
 
   deleteProduct: asyncHandler(async (req, res) => {
-    const deletedProduct = await Product.delete(req.params.code);
-    return sendResponse(
-      res,
-      HTTP_STATUS.OK,
-      true,
-      PRODUCT_MESSAGES.DELETE_SUCCESS,
-      deletedProduct
+    const result = await Product.delete(req.params.code);
+      return sendResponse(
+        res,
+        HTTP_STATUS.OK,
+        true,
+        "Xóa sản phẩm thành công",
+        result
     );
   }),
 
-  getProductsByProductType: asyncHandler(async (req, res) => {
-    const products = await Product.getByProductType(req.params.productTypeCode);
-    return sendResponse(
-      res,
-      HTTP_STATUS.OK,
-      true,
-      PRODUCT_MESSAGES.GET_BY_PRODUCT_TYPE_SUCCESS,
-      products
-    );
-  }),
-
-  updateProductStock: asyncHandler(async (req, res) => {
-    const { quantity } = req.body;
-    
-    if (!quantity || isNaN(parseInt(quantity))) {
+  getProductByProductType: asyncHandler(async (req, res) => {
+    const { productType } = req.params;
+  
+    if (!productType) {
       return sendResponse(
         res,
         HTTP_STATUS.BAD_REQUEST,
         false,
-        PRODUCT_MESSAGES.INVALID_QUANTITY
+        "Chưa nhập productType_code!"
       );
     }
-
-    const updatedProduct = await Product.updateStock(req.params.code, parseInt(quantity));
-    return sendResponse(
-      res,
-      HTTP_STATUS.OK,
-      true,
-      PRODUCT_MESSAGES.UPDATE_STOCK_SUCCESS,
-      updatedProduct
-    );
+  
+    try {
+      const products = await Product.getByProductType(productType);
+    
+      if (!products || products.length === 0) {
+        return sendResponse(
+          res,
+          HTTP_STATUS.NOT_FOUND,
+          false,
+          "Không tìm thấy sản phẩm!"
+        );
+      }
+      
+      const productTypeName = products[0]?.productType_name || productType;
+    
+      return sendResponse(
+        res,
+        HTTP_STATUS.OK,
+        true,
+        "Lấy danh sách sản phẩm thành công!",
+        {
+          productType: productTypeName,
+          count: products.length,
+          data: products
+        }
+      );
+    } catch (error) {
+      console.error("Lỗi khi lấy sản phẩm:", error);
+      return sendResponse(
+        res,
+        HTTP_STATUS.INTERNAL_SERVER_ERROR,
+        false,
+        "Lỗi khi lấy sản phẩm: " + error.message
+      );
+    }
   }),
 
-  getProductsByCategory: asyncHandler(async (req, res) => {
-    const products = await Product.getByCategory(req.params.categoryCode);
-    return sendResponse(
-      res,
-      HTTP_STATUS.OK,
-      true,
-      PRODUCT_MESSAGES.GET_BY_CATEGORY_SUCCESS,
-      products
-    );
+  getProductByCategory: asyncHandler(async (req, res) => {
+    const { category } = req.params;
+    
+    if (!category) {
+      return sendResponse(
+        res,
+        HTTP_STATUS.BAD_REQUEST,
+        false,
+        "Chưa nhập category_code!"
+      );
+    }
+    
+    try {
+      const products = await Product.getByCategory(category);
+      
+      if (!products || products.length === 0) {
+        return sendResponse(
+          res,
+          HTTP_STATUS.NOT_FOUND,
+          false,
+          "Không tìm thấy sản phẩm nào trong category này!"
+        );
+      }
+      
+      const categoryName = products[0]?.category_name || category;
+      
+      return sendResponse(
+        res,
+        HTTP_STATUS.OK,
+        true,
+        "Lấy danh sách sản phẩm thành công",
+        {
+          category: categoryName,
+          count: products.length,
+          data: products
+        }
+      );
+    } catch (error) {
+      console.error("Lỗi khi lấy sản phẩm:", error);
+      return sendResponse(
+        res,
+        HTTP_STATUS.INTERNAL_SERVER_ERROR,
+        false,
+        "Lỗi khi lấy sản phẩm: " + error.message
+      );
+    }
   }),
 
   searchProducts: asyncHandler(async (req, res) => {
-    if (!req.query.q) {
-        return sendResponse(res, 400, false, "Thiếu từ khóa tìm kiếm");
+    const { keyword } = req.query;
+  
+    if (!keyword || keyword.trim() === '') {
+      return sendResponse(
+        res,
+        HTTP_STATUS.BAD_REQUEST,
+        false,
+        "Vui lòng nhập từ khóa tìm kiếm"
+      );
     }
-
-    const products = await Product.searchByName(req.query.q);
-
-    if (!products || products.length === 0) {
-        return sendResponse(res, 404, false, "Không tìm thấy sản phẩm");
+  
+    try {
+      const products = await Product.searchProducts(keyword);
+    
+      if (!products || products.length === 0) {
+        return sendResponse(
+          res,
+          HTTP_STATUS.NOT_FOUND,
+          false,
+          `Không tìm thấy sản phẩm nào với từ khóa "${keyword}"`
+        );
+      }
+    
+      return sendResponse(
+        res,
+        HTTP_STATUS.OK,
+        true,
+        "Tìm kiếm sản phẩm thành công",
+        {
+          keyword: keyword,
+          count: products.length,
+          data: products
+        }
+      );
+    } catch (error) {
+      console.error("Lỗi khi tìm kiếm sản phẩm:", error);
+      return sendResponse(
+        res,
+        HTTP_STATUS.INTERNAL_SERVER_ERROR,
+        false,
+        "Lỗi khi tìm kiếm sản phẩm: " + error.message
+      );
     }
-
-    return sendResponse(res, 200, true, "Tìm kiếm thành công", {
-        total_results: products.length, 
-        products
-    });
-})
-
+  })
 };
 
 module.exports = productController;
