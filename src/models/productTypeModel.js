@@ -1,4 +1,3 @@
-// src/models/productTypeModel.js
 const pool = require('../config/dbConfig');
 const { v4: uuidv4 } = require('uuid');
 const { PRODUCT_TYPE_MESSAGES } = require('../constants/messages');

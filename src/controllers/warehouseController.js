@@ -67,7 +67,48 @@ const warehouseController = {
       WAREHOUSE_MESSAGES.DELETE_SUCCESS,
       deletedWarehouse
     );
-  })
+  }),
+
+  getWarehouseProducts: asyncHandler(async (req, res) => {
+    const { code } = req.params;
+    
+    if (!code) {
+      return sendResponse(
+        res,
+        HTTP_STATUS.BAD_REQUEST,
+        false,
+        "Thiếu mã kho hàng"
+      );
+    }
+    
+    // Kiểm tra kho có tồn tại không
+    const warehouse = await Warehouse.getWarehouseById(code);
+    
+    if (!warehouse) {
+      return sendResponse(
+        res,
+        HTTP_STATUS.NOT_FOUND,
+        false,
+        "Kho hàng không tồn tại"
+      );
+    }
+    
+    // Lấy danh sách sản phẩm trong kho
+    const products = await Warehouse.getProductsInWarehouse(code);
+    
+    return sendResponse(
+      res,
+      HTTP_STATUS.OK,
+      true,
+      "Lấy danh sách sản phẩm trong kho thành công",
+      {
+        warehouse: warehouse,
+        products: products,
+        total_products: products.length
+      }
+    );
+  }),
+  
 };
 
 module.exports = warehouseController;

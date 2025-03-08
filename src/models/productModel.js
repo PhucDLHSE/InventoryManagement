@@ -215,6 +215,83 @@ class Product {
       throw error;
     }
   }
+
+
+static async getProductWithWarehouses(product_code) {
+  try {
+    console.log("🔍 Đang tìm sản phẩm với mã:", product_code);
+    
+    // Lấy thông tin sản phẩm
+    const [productInfo] = await pool.query(`
+      SELECT p.*, pt.productType_name
+      FROM Product p
+      JOIN ProductType pt ON p.productType_code = pt.productType_code
+      WHERE p.product_code = ?
+    `, [product_code]);
+    
+    if (productInfo.length === 0) {
+      return null;
+    }
+    
+    // Lấy thông tin các kho chứa sản phẩm
+    const [warehouseInfo] = await pool.query(`
+      SELECT 
+        w.warehouse_code,
+        w.warehouse_name,
+        w.address,
+        (
+          COALESCE((
+            SELECT SUM(ni.quantity)
+            FROM NoteItem ni
+            JOIN ExchangeNote e ON ni.exchangeNote_id = e.exchangeNote_id
+            WHERE ni.product_code = ?
+            AND e.status = 'finished'
+            AND e.transactionType = 'IMPORT'
+            AND e.destination_warehouse_id = w.warehouse_code
+          ), 0)
+          -
+          COALESCE((
+            SELECT SUM(ni.quantity)
+            FROM NoteItem ni
+            JOIN ExchangeNote e ON ni.exchangeNote_id = e.exchangeNote_id
+            WHERE ni.product_code = ?
+            AND e.status = 'finished'
+            AND e.transactionType = 'EXPORT'
+            AND e.source_warehouse_id = w.warehouse_code
+          ), 0)
+        ) as quantity_in_warehouse
+      FROM 
+        Warehouse w
+      WHERE EXISTS (
+        SELECT 1 FROM NoteItem ni
+        JOIN ExchangeNote e ON ni.exchangeNote_id = e.exchangeNote_id
+        WHERE ni.product_code = ?
+        AND e.status = 'finished'
+        AND (
+          (e.transactionType = 'IMPORT' AND e.destination_warehouse_id = w.warehouse_code) OR
+          (e.transactionType = 'EXPORT' AND e.source_warehouse_id = w.warehouse_code)
+        )
+      )
+      HAVING quantity_in_warehouse > 0
+      ORDER BY w.warehouse_name
+    `, [product_code, product_code, product_code]);
+    
+    // Tính tổng số lượng trong tất cả các kho
+    const totalQuantityInWarehouses = warehouseInfo.reduce(
+      (sum, warehouse) => sum + parseInt(warehouse.quantity_in_warehouse), 0
+    );
+    
+    return {
+      product: productInfo[0],
+      warehouses: warehouseInfo,
+      total_in_warehouses: totalQuantityInWarehouses
+    };
+  } catch (error) {
+    console.error("Lỗi khi lấy thông tin sản phẩm và kho chứa:", error);
+    throw error;
+  }
+}
+
 }
 
 module.exports = Product;

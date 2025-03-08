@@ -1,202 +1,457 @@
-const pool = require("../config/dbConfig");
-const { v4: uuidv4 } = require("uuid");
+const pool = require('../config/dbConfig');
+const { v4: uuidv4 } = require('uuid');
 
 class ExchangeNote {
-    static async getAll() {
-        try {
-            const [exchangeNotes] = await pool.query(`
-                SELECT 
-                    e.exchangeNote_id, e.warehouse_code, e.type, e.status, e.created_by, e.date,
-                    u.full_name AS created_by_name,
-                    w.warehouse_name
-                FROM ExchangeNote e
-                JOIN User u ON e.created_by = u.user_code
-                JOIN Warehouse w ON e.warehouse_code = w.warehouse_code
-                ORDER BY e.date DESC
-            `);
-    
-            if (exchangeNotes.length === 0) {
-                return { pending: [], approved: [], rejected: [] };
-            }
-    
-            // Lấy tất cả sản phẩm trong các phiếu nhập/xuất
-            const exchangeNoteIds = exchangeNotes.map(e => e.exchangeNote_id);
-            const placeholders = exchangeNoteIds.map(() => "?").join(",");
-    
-            const [noteItems] = await pool.query(`
-                SELECT 
-                    n.exchangeNote_id, n.product_code, n.quantity,
-                    p.product_name, p.size, p.color
-                FROM NoteItem n
-                JOIN Product p ON n.product_code = p.product_code
-                WHERE n.exchangeNote_id IN (${placeholders})
-            `, exchangeNoteIds);
-    
-            // Gom nhóm sản phẩm vào phiếu tương ứng
-            const exchangeNoteMap = {
-                pending: [],
-                approved: [],
-                rejected: []
-            };
-    
-            exchangeNotes.forEach(note => {
-                const formattedNote = {
-                    exchangeNote_id: note.exchangeNote_id,
-                    warehouse: {
-                        code: note.warehouse_code,
-                        name: note.warehouse_name
-                    },
-                    type: note.type,
-                    created_by: {
-                        user_code: note.created_by,
-                        full_name: note.created_by_name
-                    },
-                    date: note.date,
-                    products: []
-                };
-    
-                noteItems.forEach(item => {
-                    if (item.exchangeNote_id === note.exchangeNote_id) {
-                        formattedNote.products.push({
-                            code: item.product_code,
-                            name: item.product_name,
-                            size: item.size,
-                            color: item.color,
-                            quantity: item.quantity
-                        });
-                    }
-                });
-    
-                exchangeNoteMap[note.status].push(formattedNote);
-            });
-    
-            return exchangeNoteMap;
-        } catch (error) {
-            console.error("Lỗi khi lấy danh sách phiếu nhập/xuất:", error);
-            throw error;
-        }
+  // Tạo mã phiếu nhập/xuất mới
+  static async generateExchangeNoteCode() {
+    try {
+      const [lastCode] = await pool.query(
+        'SELECT exchangeNote_id FROM ExchangeNote ORDER BY exchangeNote_id DESC LIMIT 1'
+      );
+      let newCode = 'EX0001';
+      if (lastCode[0]) {
+        const lastNumber = parseInt(lastCode[0].exchangeNote_id.substring(2));
+        newCode = `EX${(lastNumber + 1).toString().padStart(4, '0')}`;
+      }
+      return newCode;
+    } catch (error) {
+      console.error('Lỗi khi tạo mã phiếu nhập/xuất:', error);
+      throw error;
     }
+  }
 
-    static async approve(exchangeNoteId, status, approvedBy) {
-        try {
-            // 1️⃣ Kiểm tra xem phiếu có tồn tại không
-            const [exchangeNotes] = await pool.query(`
-                SELECT * FROM ExchangeNote WHERE exchangeNote_id = ? AND status = 'pending'
-            `, [exchangeNoteId]);
+  // Tạo mã cho item trong phiếu
+static async generateNoteItemCode() {
+    try {
+      // Tạo mã dựa trên timestamp để đảm bảo không trùng lặp
+      const timestamp = new Date().getTime();
+      const randomPart = Math.floor(Math.random() * 10000).toString().padStart(4, '0');
+      const newCode = `NI${timestamp.toString().slice(-6)}${randomPart}`;
+      
+      // Kiểm tra xem mã đã tồn tại chưa
+      const [existing] = await pool.query(
+        'SELECT noteItem_code FROM NoteItem WHERE noteItem_code = ?',
+        [newCode]
+      );
+      
+      if (existing.length > 0) {
+        // Nếu trùng (rất hiếm), thử lại
+        return this.generateNoteItemCode();
+      }
+      
+      console.log("Mã NoteItem mới được tạo:", newCode);
+      return newCode;
+    } catch (error) {
+      console.error('Lỗi khi tạo mã item phiếu:', error);
+      throw error;
+    }
+  }
 
-            if (exchangeNotes.length === 0) {
-                throw new Error("Phiếu nhập/xuất không tồn tại hoặc đã được xử lý.");
-            }
+  // Tạo phiếu nhập kho
+static async createImportNote(importData, user) {
+    const connection = await pool.getConnection();
+    
+    try {
+      await connection.beginTransaction();
+      
+      const { warehouse_code, source_warehouse_id, source_type, items } = importData;
+      
+      if (!warehouse_code || !items || items.length === 0) {
+        throw new Error("Thiếu thông tin bắt buộc cho phiếu nhập kho");
+      }
+      
+      // Kiểm tra kho đích tồn tại
+      const [warehouseExists] = await connection.query(
+        'SELECT * FROM Warehouse WHERE warehouse_code = ?',
+        [warehouse_code]
+      );
+      
+      if (warehouseExists.length === 0) {
+        throw new Error("Kho không tồn tại");
+      }
+      
+      // Tạo phiếu nhập kho
+      const exchangeNote_id = uuidv4();
+      const date = new Date();
+      
+      // Xác định loại nguồn, mặc định là EXTERNAL nếu không được chỉ định
+      const sourceType = source_type || 'EXTERNAL';
+      
+      // Kiểm tra kho nguồn nếu là INTERNAL (chuyển kho)
+      if (sourceType === 'INTERNAL' && !source_warehouse_id) {
+        throw new Error("Cần chỉ định kho nguồn cho loại nhập INTERNAL");
+      }
+      
+      // Kiểm tra kho nguồn tồn tại (nếu có)
+      if (source_warehouse_id) {
+        const [sourceExists] = await connection.query(
+          'SELECT * FROM Warehouse WHERE warehouse_code = ?',
+          [source_warehouse_id]
+        );
+        
+        if (sourceExists.length === 0) {
+          throw new Error("Kho nguồn không tồn tại");
+        }
+      }
+      
+      await connection.query(`
+        INSERT INTO ExchangeNote (
+          exchangeNote_id, 
+          warehouse_code, 
+          transactionType, 
+          status,
+          source_type,
+          source_warehouse_id, 
+          destination_warehouse_id, 
+          created_by, 
+          date
+        ) VALUES (?, ?, 'IMPORT', 'pending', ?, ?, ?, ?, ?)`,
+        [
+          exchangeNote_id, 
+          warehouse_code, 
+          sourceType,
+          source_warehouse_id || null,
+          warehouse_code,  // Kho đích là kho nhập
+          user.userCode, 
+          date
+        ]
+      );
+      
+      // Tạo các mục trong phiếu
+      for (const item of items) {
+        const { product_code, quantity } = item;
+        
+        if (!product_code || !quantity || quantity <= 0) {
+          throw new Error("Thông tin sản phẩm không hợp lệ");
+        }
+        
+        // Kiểm tra sản phẩm tồn tại
+        const [productExists] = await connection.query(
+          'SELECT * FROM Product WHERE product_code = ?',
+          [product_code]
+        );
+        
+        if (productExists.length === 0) {
+          throw new Error(`Sản phẩm với mã ${product_code} không tồn tại`);
+        }
+        
+        const noteItem_id = uuidv4();
+        // Tạo mã có thời gian để đảm bảo duy nhất
+        const timestamp = new Date().getTime();
+        const noteItem_code = `NI${timestamp.toString().slice(-10)}`;
+        
+        await connection.query(`
+          INSERT INTO NoteItem (
+            noteItem_id, 
+            noteItem_code, 
+            product_code, 
+            warehouse_code, 
+            exchangeNote_id, 
+            quantity
+          ) VALUES (?, ?, ?, ?, ?, ?)`,
+          [
+            noteItem_id, 
+            noteItem_code, 
+            product_code, 
+            warehouse_code, 
+            exchangeNote_id, 
+            quantity
+          ]
+        );
+      }
+      
+      // Lấy thông tin phiếu nhập vừa tạo
+      const [noteInfo] = await connection.query(`
+        SELECT e.*, w.warehouse_name, u.full_name as created_by_name
+        FROM ExchangeNote e
+        JOIN Warehouse w ON e.warehouse_code = w.warehouse_code
+        JOIN User u ON e.created_by = u.user_code
+        WHERE e.exchangeNote_id = ?
+      `, [exchangeNote_id]);
+      
+      // Lấy thông tin các mục trong phiếu
+      const [itemsInfo] = await connection.query(`
+        SELECT ni.*, p.product_name, p.size, p.color
+        FROM NoteItem ni
+        JOIN Product p ON ni.product_code = p.product_code
+        WHERE ni.exchangeNote_id = ?
+      `, [exchangeNote_id]);
+      
+      await connection.commit();
+      
+      return {
+        note: noteInfo[0],
+        items: itemsInfo
+      };
+      
+    } catch (error) {
+      await connection.rollback();
+      console.error("Lỗi khi tạo phiếu nhập kho:", error);
+      throw error;
+    } finally {
+      connection.release();
+    }
+  }
 
-            const exchangeNote = exchangeNotes[0];
+  // Lấy thông tin phiếu nhập kho theo ID
+  static async getImportNoteById(exchangeNote_id) {
+    try {
+      // Lấy thông tin phiếu
+      const [noteInfo] = await pool.query(`
+        SELECT e.*, w.warehouse_name, u.full_name as created_by_name,
+               u2.full_name as approved_by_name
+        FROM ExchangeNote e
+        JOIN Warehouse w ON e.warehouse_code = w.warehouse_code
+        JOIN User u ON e.created_by = u.user_code
+        LEFT JOIN User u2 ON e.approved_by = u2.user_code
+        WHERE e.exchangeNote_id = ?
+      `, [exchangeNote_id]);
+      
+      if (noteInfo.length === 0) {
+        return null;
+      }
+      
+      // Lấy thông tin các mục trong phiếu
+      const [itemsInfo] = await pool.query(`
+        SELECT ni.*, p.product_name, p.size, p.color
+        FROM NoteItem ni
+        JOIN Product p ON ni.product_code = p.product_code
+        WHERE ni.exchangeNote_id = ?
+      `, [exchangeNote_id]);
+      
+      return {
+        note: noteInfo[0],
+        items: itemsInfo
+      };
+      
+    } catch (error) {
+      console.error("Lỗi khi lấy thông tin phiếu nhập kho:", error);
+      throw error;
+    }
+  }
 
-            // 2️⃣ Nếu từ chối phiếu, chỉ cập nhật trạng thái
-            if (status === 'rejected') {
-                await pool.query(`
-                    UPDATE ExchangeNote SET status = 'rejected', approved_by = ? WHERE exchangeNote_id = ?
-                `, [approvedBy, exchangeNoteId]);
+  // Lấy danh sách phiếu nhập kho
+  static async getAllImportNotes() {
+    try {
+      const [notes] = await pool.query(`
+        SELECT e.*, w.warehouse_name, u.full_name as created_by_name,
+               u2.full_name as approved_by_name
+        FROM ExchangeNote e
+        JOIN Warehouse w ON e.warehouse_code = w.warehouse_code
+        JOIN User u ON e.created_by = u.user_code
+        LEFT JOIN User u2 ON e.approved_by = u2.user_code
+        WHERE e.transactionType = 'IMPORT'
+        ORDER BY e.date DESC
+      `);
+      
+      return notes;
+      
+    } catch (error) {
+      console.error("Lỗi khi lấy danh sách phiếu nhập kho:", error);
+      throw error;
+    }
+  }
+
+  // Duyệt phiếu nhập kho
+  static async approveImportNote(exchangeNote_id, approvedBy) {
+    const connection = await pool.getConnection();
+    
+    try {
+      await connection.beginTransaction();
+      
+      // Cập nhật trạng thái phiếu
+      await connection.query(`
+        UPDATE ExchangeNote 
+        SET status = 'accepted', approved_by = ?
+        WHERE exchangeNote_id = ? AND status = 'pending'
+      `, [approvedBy, exchangeNote_id]);
+      
+      const [updateResult] = await connection.query(`
+        SELECT ROW_COUNT() as affectedRows
+      `);
+      
+      if (updateResult[0].affectedRows === 0) {
+        throw new Error("Không thể duyệt phiếu hoặc phiếu không ở trạng thái chờ duyệt");
+      }
+      
+      await connection.commit();
+      
+      return { success: true, message: "Duyệt phiếu nhập kho thành công" };
+      
+    } catch (error) {
+      await connection.rollback();
+      console.error("Lỗi khi duyệt phiếu nhập kho:", error);
+      throw error;
+    } finally {
+      connection.release();
+    }
+  }
+
+  // Hoàn thành phiếu nhập kho và cập nhật số lượng sản phẩm
+  static async completeImportNote(exchangeNote_id) {
+    const connection = await pool.getConnection();
+    
+    try {
+      await connection.beginTransaction();
+      
+      // Kiểm tra trạng thái phiếu
+      const [noteInfo] = await connection.query(`
+        SELECT * FROM ExchangeNote WHERE exchangeNote_id = ?
+      `, [exchangeNote_id]);
+      
+      if (noteInfo.length === 0) {
+        throw new Error("Phiếu không tồn tại");
+      }
+      
+      if (noteInfo[0].status !== 'accepted') {
+        throw new Error("Phiếu chưa được duyệt hoặc đã hoàn thành/từ chối");
+      }
+      
+      // Lấy danh sách sản phẩm trong phiếu
+      const [items] = await connection.query(`
+        SELECT * FROM NoteItem WHERE exchangeNote_id = ?
+      `, [exchangeNote_id]);
+      
+      // Lấy thông tin từ phiếu
+      const sourceType = noteInfo[0].source_type || 'EXTERNAL';
+      const transactionType = noteInfo[0].transactionType;
+      const sourceWarehouse = noteInfo[0].source_warehouse_id;
+      const destinationWarehouse = noteInfo[0].destination_warehouse_id;
+      
+      console.log(`Hoàn thành phiếu ${exchangeNote_id}: ${transactionType}, sourceType: ${sourceType}`);
+      console.log(`Nguồn: ${sourceWarehouse}, Đích: ${destinationWarehouse}`);
+      
+      // Xử lý cập nhật số lượng sản phẩm
+      for (const item of items) {
+        if (transactionType === 'IMPORT') {
+          if (sourceType === 'EXTERNAL') {
+            // Nhập từ bên ngoài: Tăng số lượng
+            console.log(`Nhập ${item.quantity} sản phẩm ${item.product_code} từ bên ngoài vào kho ${destinationWarehouse}`);
+            await connection.query(`
+              UPDATE Product 
+              SET quantity = quantity + ?,
+                  status = CASE WHEN (quantity + ?) > 0 THEN 'instock' ELSE status END
+              WHERE product_code = ?
+            `, [item.quantity, item.quantity, item.product_code]);
+          } 
+          else if (sourceType === 'SYSTEM') {
+            // Nhập từ hệ thống: Giảm số lượng trong hệ thống
+            console.log(`Nhập ${item.quantity} sản phẩm ${item.product_code} từ hệ thống vào kho ${destinationWarehouse}`);
+            await connection.query(`
+              UPDATE Product 
+              SET quantity = quantity - ?,
+                  status = CASE WHEN (quantity - ?) > 0 THEN 'instock' ELSE 'outofstock' END
+              WHERE product_code = ?
+            `, [item.quantity, item.quantity, item.product_code]);
+          }
+          else if (sourceType === 'INTERNAL' && sourceWarehouse) {
+            // Chuyển kho (nhập từ kho khác): Cần thêm logic để xử lý chuyển kho
+            console.log(`Chuyển ${item.quantity} sản phẩm ${item.product_code} từ kho ${sourceWarehouse} sang kho ${destinationWarehouse}`);
             
-                // Cập nhật trạng thái sản phẩm thành "outofstock"
-                await pool.query(`
-                    UPDATE Product SET status = 'outofstock' WHERE product_code IN (
-                        SELECT product_code FROM NoteItem WHERE exchangeNote_id = ?
-                    )
-                `, [exchangeNoteId]);
+            // Tạo một phiếu xuất kho từ kho nguồn
+            const exportNoteId = uuidv4();
+            const now = new Date();
             
-                return { success: true, message: "Phiếu nhập/xuất đã bị từ chối. Sản phẩm được giữ lại nhưng có trạng thái 'outofstock'." };
-            }
-
-            // 3️⃣ Nếu duyệt phiếu, cập nhật kho
-            if (status === 'approved') {
-                // Lấy danh sách sản phẩm trong phiếu nhập/xuất
-                const [noteItems] = await pool.query(`
-                    SELECT product_code, quantity FROM NoteItem WHERE exchangeNote_id = ?
-                `, [exchangeNoteId]);
-
-                if (noteItems.length === 0) {
-                    throw new Error("Không có sản phẩm nào trong phiếu nhập/xuất.");
-                }
-
-                // Thêm sản phẩm vào kho
-                for (const item of noteItems) {
-                    await pool.query(`
-                        INSERT INTO Stock (stock_id, stock_code, warehouse_code, product_code, quantity)
-                        VALUES (UUID(), ?, ?, ?, ?)
-                        ON DUPLICATE KEY UPDATE quantity = quantity + VALUES(quantity)
-                    `, [`ST${Math.floor(Math.random() * 10000)}`, exchangeNote.warehouse_code, item.product_code, item.quantity]);
-                }
-
-                // Cập nhật trạng thái phiếu nhập
-                await pool.query(`
-                    UPDATE ExchangeNote SET status = 'approved', approved_by = ? WHERE exchangeNote_id = ?
-                `, [approvedBy, exchangeNoteId]);
-
-                return { success: true, message: "Phiếu nhập/xuất đã được duyệt và cập nhật vào kho." };
-            }
-
-            throw new Error("Trạng thái không hợp lệ.");
-        } catch (error) {
-            console.error("Lỗi khi duyệt phiếu nhập/xuất:", error);
-            throw error;
+            // Tạo phiếu xuất cho kho nguồn
+            await connection.query(`
+              INSERT INTO ExchangeNote (
+                exchangeNote_id, 
+                warehouse_code,
+                transactionType, 
+                status, 
+                source_type,
+                source_warehouse_id, 
+                destination_warehouse_id, 
+                created_by, 
+                approved_by,
+                date
+              ) VALUES (?, ?, 'EXPORT', 'finished', 'INTERNAL', ?, ?, ?, ?, ?)
+            `, [
+              exportNoteId, 
+              sourceWarehouse,
+              sourceWarehouse,
+              destinationWarehouse,
+              noteInfo[0].created_by,
+              noteInfo[0].approved_by,
+              now
+            ]);
+            
+            // Tạo mục cho phiếu xuất
+            const exportItemId = uuidv4();
+            const timestamp = new Date().getTime();
+            const exportItemCode = `NI${timestamp.toString().slice(-10)}`;
+            
+            await connection.query(`
+              INSERT INTO NoteItem (
+                noteItem_id, 
+                noteItem_code, 
+                product_code, 
+                warehouse_code, 
+                exchangeNote_id, 
+                quantity
+              ) VALUES (?, ?, ?, ?, ?, ?)
+            `, [
+              exportItemId,
+              exportItemCode,
+              item.product_code,
+              sourceWarehouse,
+              exportNoteId,
+              item.quantity
+            ]);
+          }
+        } 
+        else if (transactionType === 'EXPORT') {
+          // Xử lý phiếu xuất kho
+          console.log(`Xuất ${item.quantity} sản phẩm ${item.product_code} từ kho ${sourceWarehouse}`);
+          
+          // Giảm số lượng sản phẩm
+          await connection.query(`
+            UPDATE Product 
+            SET quantity = quantity - ?,
+                status = CASE WHEN (quantity - ?) > 0 THEN 'instock' ELSE 'outofstock' END
+            WHERE product_code = ?
+          `, [item.quantity, item.quantity, item.product_code]);
         }
+      }
+      
+      // Cập nhật trạng thái phiếu
+      await connection.query(`
+        UPDATE ExchangeNote SET status = 'finished' WHERE exchangeNote_id = ?
+      `, [exchangeNote_id]);
+      
+      await connection.commit();
+      
+      return { success: true, message: "Hoàn thành phiếu thành công" };
+      
+    } catch (error) {
+      await connection.rollback();
+      console.error("Lỗi khi hoàn thành phiếu:", error);
+      throw error;
+    } finally {
+      connection.release();
     }
+  }
 
-    static async createImportNote(warehouse_code, created_by, products) {
-        try {
-            if (!warehouse_code || !created_by || !products || products.length === 0) {
-                throw new Error(`Thông tin phiếu nhập không hợp lệ. warehouse_code: ${warehouse_code}, created_by: ${created_by}, products: ${JSON.stringify(products)}`);
-            }
-
-            // 1️⃣ Kiểm tra kho có tồn tại không
-            const [warehouse] = await pool.query(`
-                SELECT * FROM Warehouse WHERE warehouse_code = ?`, 
-                [warehouse_code]
-            );
-
-            if (warehouse.length === 0) {
-                throw new Error("Kho hàng không tồn tại.");
-            }
-
-            // 2️⃣ Kiểm tra sản phẩm có tồn tại không
-            const productCodes = products.map(p => p.product_code);
-            const placeholders = productCodes.map(() => "?").join(",");
-            const [existingProducts] = await pool.query(`
-                SELECT product_code FROM Product WHERE product_code IN (${placeholders})`, 
-                productCodes
-            );
-
-            const existingProductCodes = existingProducts.map(p => p.product_code);
-            const invalidProducts = productCodes.filter(code => !existingProductCodes.includes(code));
-
-            if (invalidProducts.length > 0) {
-                throw new Error(`Sản phẩm không hợp lệ: ${invalidProducts.join(", ")}`);
-            }
-
-            // 3️⃣ Tạo phiếu nhập kho
-            const exchangeNoteId = uuidv4();
-            await pool.query(`
-                INSERT INTO ExchangeNote (exchangeNote_id, warehouse_code, type, status, created_by, date)
-                VALUES (?, ?, 'import', 'pending', ?, NOW())`, 
-                [exchangeNoteId, warehouse_code, created_by]
-            );
-
-            // 4️⃣ Thêm sản phẩm vào bảng NoteItem
-            for (const product of products) {
-                const noteItemId = uuidv4();
-                await pool.query(`
-                    INSERT INTO NoteItem (noteItem_id, noteItem_code, product_code, exchangeNote_id, quantity)
-                    VALUES (?, ?, ?, ?, ?)`, 
-                    [noteItemId, `NI${Math.floor(Math.random() * 10000).toString().padStart(4, '0')}`, 
-                    product.product_code, exchangeNoteId, product.quantity]
-                );
-            }
-
-            return { success: true, message: "Phiếu nhập kho đã được tạo, chờ duyệt.", exchangeNoteId };
-        } catch (error) {
-            console.error("Lỗi khi tạo phiếu nhập kho:", error);
-            throw error;
-        }
+  // Từ chối phiếu nhập kho
+  static async rejectImportNote(exchangeNote_id, rejectedBy) {
+    try {
+      const [result] = await pool.query(`
+        UPDATE ExchangeNote 
+        SET status = 'rejected', approved_by = ?
+        WHERE exchangeNote_id = ? AND status = 'pending'
+      `, [rejectedBy, exchangeNote_id]);
+      
+      if (result.affectedRows === 0) {
+        throw new Error("Không thể từ chối phiếu hoặc phiếu không ở trạng thái chờ duyệt");
+      }
+      
+      return { success: true, message: "Từ chối phiếu nhập kho thành công" };
+      
+    } catch (error) {
+      console.error("Lỗi khi từ chối phiếu nhập kho:", error);
+      throw error;
     }
+  }
 }
 
 module.exports = ExchangeNote;

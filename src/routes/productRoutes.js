@@ -1,7 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const productController = require('../controllers/productController');
-const { verifyToken, verifyAdmin, verifyManager } = require('../middleware/authMiddleware');
+const { verifyToken, verifyManager } = require('../middleware/authMiddleware');
 
 router.post('/', verifyToken, verifyManager, productController.createProduct);
 router.patch('/:code', verifyToken, verifyManager, productController.updateProduct);
@@ -12,5 +12,7 @@ router.get('/category/:category', verifyToken, productController.getProductByCat
 router.get('/productType/:productType', verifyToken, productController.getProductByProductType);
 router.get('/:code', verifyToken, productController.getProductByCode);
 router.get('/', verifyToken, productController.getAllProducts);
+
+router.get('/:code/locations', verifyToken, productController.getProductLocations);
 
 module.exports = router;

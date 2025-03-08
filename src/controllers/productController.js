@@ -250,7 +250,41 @@ const productController = {
         "Lỗi khi tìm kiếm sản phẩm: " + error.message
       );
     }
+  }),
+
+  // Lấy thông tin sản phẩm và các kho chứa nó
+  getProductLocations: asyncHandler(async (req, res) => {
+  const { code } = req.params;
+  
+  if (!code) {
+    return sendResponse(
+      res,
+      HTTP_STATUS.BAD_REQUEST,
+      false,
+      "Thiếu mã sản phẩm"
+    );
+  }
+  
+  const productInfo = await Product.getProductWithWarehouses(code);
+  
+  if (!productInfo) {
+    return sendResponse(
+      res,
+      HTTP_STATUS.NOT_FOUND,
+      false,
+      "Sản phẩm không tồn tại"
+    );
+  }
+  
+  return sendResponse(
+    res,
+    HTTP_STATUS.OK,
+    true,
+    "Lấy thông tin sản phẩm và kho chứa thành công",
+    productInfo
+  );
   })
+  
 };
 
 module.exports = productController;
