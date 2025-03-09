@@ -216,12 +216,10 @@ class Product {
     }
   }
 
-
-static async getProductWithWarehouses(product_code) {
+  static async getProductWithWarehouses(product_code) {
   try {
-    console.log("🔍 Đang tìm sản phẩm với mã:", product_code);
-    
-    // Lấy thông tin sản phẩm
+    console.log("Đang tìm sản phẩm với mã:", product_code);
+  
     const [productInfo] = await pool.query(`
       SELECT p.*, pt.productType_name
       FROM Product p
@@ -233,7 +231,6 @@ static async getProductWithWarehouses(product_code) {
       return null;
     }
     
-    // Lấy thông tin các kho chứa sản phẩm
     const [warehouseInfo] = await pool.query(`
       SELECT 
         w.warehouse_code,
@@ -259,7 +256,7 @@ static async getProductWithWarehouses(product_code) {
             AND e.transactionType = 'EXPORT'
             AND e.source_warehouse_id = w.warehouse_code
           ), 0)
-        ) as quantity_in_warehouse
+          ) as quantity_in_warehouse
       FROM 
         Warehouse w
       WHERE EXISTS (
@@ -276,7 +273,6 @@ static async getProductWithWarehouses(product_code) {
       ORDER BY w.warehouse_name
     `, [product_code, product_code, product_code]);
     
-    // Tính tổng số lượng trong tất cả các kho
     const totalQuantityInWarehouses = warehouseInfo.reduce(
       (sum, warehouse) => sum + parseInt(warehouse.quantity_in_warehouse), 0
     );
@@ -287,10 +283,10 @@ static async getProductWithWarehouses(product_code) {
       total_in_warehouses: totalQuantityInWarehouses
     };
   } catch (error) {
-    console.error("Lỗi khi lấy thông tin sản phẩm và kho chứa:", error);
-    throw error;
+      console.error("Lỗi khi tìm địa điểm của sản phẩm sản phẩm:", error);
+      throw error;
+    }
   }
-}
 
 }
 

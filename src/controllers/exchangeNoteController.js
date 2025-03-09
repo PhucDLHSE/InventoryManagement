@@ -5,7 +5,7 @@ const asyncHandler = require('../utils/asyncHandler');
 
 const exchangeNoteController = {
     // Tạo phiếu nhập kho
-createImportNote: asyncHandler(async (req, res) => {
+  createImportNote: asyncHandler(async (req, res) => {
     if (!req.user || !req.user.userCode) {
       return sendResponse(
         res,
@@ -16,9 +16,9 @@ createImportNote: asyncHandler(async (req, res) => {
     }
   
     const importData = req.body;
+    const isSystemImport = importData.is_system_import === true;
   
-    // Kiểm tra dữ liệu đầu vào cơ bản
-    if (!importData.warehouse_code || !importData.items || importData.items.length === 0) {
+    if ( !importData.items || importData.items.length === 0) {
       return sendResponse(
         res,
         HTTP_STATUS.BAD_REQUEST,
@@ -26,24 +26,33 @@ createImportNote: asyncHandler(async (req, res) => {
         "Thiếu thông tin bắt buộc cho phiếu nhập kho"
       );
     }
+
+    // Chỉ yêu cầu warehouse_code khi KHÔNG phải nhập vào hệ thống
+    if (!isSystemImport && !importData.warehouse_code) {
+      return sendResponse(
+        res,
+        HTTP_STATUS.BAD_REQUEST,
+        false,
+        "Thiếu mã kho nhập hàng"
+      );
+    }
   
-    // Kiểm tra source_type hợp lệ
     if (importData.source_type && !['EXTERNAL', 'INTERNAL', 'SYSTEM'].includes(importData.source_type)) {
       return sendResponse(
         res,
         HTTP_STATUS.BAD_REQUEST,
         false,
-        "Loại nguồn không hợp lệ. Chỉ chấp nhận EXTERNAL, INTERNAL hoặc SYSTEM"
+        "Loại nguồn không hợp lệ. Chỉ chấp nhận EXTERNAL(kho ngoài), INTERNAL(chuyển kho nội bộ) hoặc SYSTEM(từ hệ thống)"
       );
     }
   
-    // Kiểm tra kho nguồn nếu là INTERNAL
+    // INTERNAL: Chuyển kho nội bộ
     if (importData.source_type === 'INTERNAL' && !importData.source_warehouse_id) {
       return sendResponse(
         res,
         HTTP_STATUS.BAD_REQUEST,
         false,
-        "Cần chỉ định kho nguồn cho loại nhập INTERNAL"
+        "Cần chỉ định kho nguồn (source_warehouse_code cho việc chuyển kho nội bộ !"
       );
     }
   
@@ -124,7 +133,7 @@ createImportNote: asyncHandler(async (req, res) => {
       res,
       HTTP_STATUS.OK,
       true,
-      "Duyệt phiếu nhập kho thành công"
+      "Duyệt phiếu nhập kho thành công !."
     );
   }),
 
@@ -147,23 +156,24 @@ createImportNote: asyncHandler(async (req, res) => {
       res,
       HTTP_STATUS.OK,
       true,
-      "Hoàn thành phiếu nhập kho thành công"
+      "Phiếu đã hoàn thành"
     );
   }),
 
   // Từ chối phiếu nhập kho
   rejectImportNote: asyncHandler(async (req, res) => {
-    const { id } = req.params;
+  const { id } = req.params;
 
-    if (!req.user || !req.user.userCode) {
-      return sendResponse(
-        res,
-        HTTP_STATUS.UNAUTHORIZED,
-        false,
-        "Không được phép thực hiện thao tác này"
-      );
-    }
-
+  if (!req.user || !req.user.userCode) {
+    return sendResponse(
+      res,
+      HTTP_STATUS.UNAUTHORIZED,
+      false,
+      "Không được phép thực hiện thao tác này"
+    );
+  }
+  
+  try {
     await ExchangeNote.rejectImportNote(id, req.user.userCode);
 
     return sendResponse(
@@ -172,6 +182,32 @@ createImportNote: asyncHandler(async (req, res) => {
       true,
       "Từ chối phiếu nhập kho thành công"
     );
+  } catch (error) {
+    console.error("Lỗi khi từ chối phiếu:", error);
+    
+    if (error.message.includes("Chỉ có thể từ chối phiếu đã được duyệt")) {
+      return sendResponse(
+        res,
+        HTTP_STATUS.BAD_REQUEST,
+        false,
+        error.message
+      );
+    } else if (error.message.includes("Phiếu không tồn tại")) {
+      return sendResponse(
+        res,
+        HTTP_STATUS.NOT_FOUND,
+        false,
+        error.message
+      );
+    } else {
+      return sendResponse(
+        res,
+        HTTP_STATUS.SERVER_ERROR,
+        false,
+        "Lỗi khi từ chối phiếu: " + error.message
+      );
+    }
+  }
   })
 };
 
