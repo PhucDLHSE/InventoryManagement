@@ -4,6 +4,7 @@ const helmet = require('helmet');
 const morgan = require('morgan');
 
 const app = express();
+const path = require("path");
 
 // Middleware
 app.use(cors()); 
@@ -20,6 +21,10 @@ app.use('/api/categories', require('./src/routes/categoryRoutes'));
 app.use('/api/product-types', require('./src/routes/productTypeRoutes'));
 app.use('/api/products', require('./src/routes/productRoutes'));
 app.use('/api/exchange-notes', require('./src/routes/exchangeNoteRoutes'));
+app.use("/", require('./src/routes/indexRoutes'));
+
+app.use("/favicon.ico", express.static(path.join(__dirname, "public", "favicon.ico")));
+app.get("/favicon.ico", (req, res) => res.status(204).end());
 
 // Middleware log request
 app.use((req, res, next) => {
