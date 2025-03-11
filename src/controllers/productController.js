@@ -51,7 +51,7 @@ const productController = {
       res,
       HTTP_STATUS.OK,
       true,
-      "Lấy sản phẩm thành công",
+      "Lấy sản phẩm thành công!",
       product
     );
   }),

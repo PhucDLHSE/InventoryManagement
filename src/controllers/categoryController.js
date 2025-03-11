@@ -1,4 +1,3 @@
-// src/controllers/categoryController.js
 const Category = require('../models/categoryModel');
 const { CATEGORY_MESSAGES } = require('../constants/messages');
 const HTTP_STATUS = require('../utils/httpStatus');

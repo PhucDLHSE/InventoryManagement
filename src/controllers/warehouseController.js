@@ -1,4 +1,3 @@
-// src/controllers/warehouseController.js
 const Warehouse = require('../models/warehouseModel');
 const { WAREHOUSE_MESSAGES } = require('../constants/messages');
 const HTTP_STATUS = require('../utils/httpStatus');
@@ -77,11 +76,9 @@ const warehouseController = {
         res,
         HTTP_STATUS.BAD_REQUEST,
         false,
-        "Thiếu mã kho hàng"
+        "Thiếu mã kho!"
       );
     }
-    
-    // Kiểm tra kho có tồn tại không
     const warehouse = await Warehouse.getWarehouseById(code);
     
     if (!warehouse) {
@@ -92,8 +89,6 @@ const warehouseController = {
         "Kho hàng không tồn tại"
       );
     }
-    
-    // Lấy danh sách sản phẩm trong kho
     const products = await Warehouse.getProductsInWarehouse(code);
     
     return sendResponse(

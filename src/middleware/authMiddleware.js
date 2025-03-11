@@ -1,13 +1,10 @@
 const jwt = require('jsonwebtoken');
 const { ROLE_TYPES } = require('../constants/roles');
-
-// Lấy JWT secret từ biến môi trường hoặc sử dụng mặc định
 const JWT_SECRET = process.env.JWT_SECRET || 'your-jwt-secret-key';
 
-// Middleware xác thực token
+// Xác thực token
 exports.verifyToken = (req, res, next) => {
   try {
-    // Lấy token từ header
     const authHeader = req.headers.authorization;
     if (!authHeader || !authHeader.startsWith('Bearer ')) {
       return res.status(401).json({
@@ -16,19 +13,14 @@ exports.verifyToken = (req, res, next) => {
       });
     }
 
-    // Lấy token từ header "Bearer <token>"
+    //"Bearer <token>"
     const token = authHeader.split(' ')[1];
-
-    // Xác thực token
     const decoded = jwt.verify(token, JWT_SECRET);
-
-    // Đặt thông tin người dùng vào req để sử dụng trong các middleware và controller
     req.user = decoded;
-    
-    // Tiếp tục xử lý request
+  
     next();
   } catch (error) {
-    console.error('Token verification error:', error);
+    console.error('Token lỗi:', error);
     
     if (error.name === 'TokenExpiredError') {
       return res.status(401).json({
@@ -44,9 +36,8 @@ exports.verifyToken = (req, res, next) => {
   }
 };
 
-// Middleware kiểm tra quyền Admin
+// Kiểm tra quyền Admin
 exports.verifyAdmin = (req, res, next) => {
-  // Kiểm tra xem middleware trước đó đã xác thực token chưa
   if (!req.user) {
     return res.status(401).json({
       success: false,
@@ -54,19 +45,15 @@ exports.verifyAdmin = (req, res, next) => {
     });
   }
 
-  // Kiểm tra quyền Admin
   if (req.user.role === ROLE_TYPES.ADMIN) {
     return next();
   }
-
-  // Nếu không phải Admin, chuyển đến middleware tiếp theo
-  // (có thể là verifyManager hoặc controller nếu API cần quyền admin HOẶC manager)
   next('route');
 };
 
-// Middleware kiểm tra quyền Manager
+// Kiểm tra quyền Manager
 exports.verifyManager = (req, res, next) => {
-  console.log("🛠️ Kiểm tra quyền:", req.user); // Debugging
+  console.log("Kiểm tra quyền:", req.user);
 
   if (!req.user) {
     return res.status(401).json({ success: false, message: "Không được phép truy cập" });
@@ -79,29 +66,24 @@ exports.verifyManager = (req, res, next) => {
   return res.status(403).json({ success: false, message: "Bạn không có quyền thực hiện hành động này" });
 };
 
-// Middleware kiểm tra quyền Staff
+// Kiểm tra quyền Staff
 exports.verifyStaff = (req, res, next) => {
-  // Kiểm tra xem middleware trước đó đã xác thực token chưa
   if (!req.user) {
     return res.status(401).json({
       success: false,
       message: 'Không được phép truy cập'
     });
   }
-
-  // Kiểm tra quyền Staff
   if (req.user.role === ROLE_TYPES.STAFF) {
     return next();
   }
 
-  // Nếu không phải Staff, trả về lỗi 403 Forbidden
   return res.status(403).json({
     success: false,
     message: 'Bạn không có quyền thực hiện hành động này'
   });
 };
 
-// Middleware kiểm tra người dùng đã được gán vào kho chưa
 exports.verifyWarehouseAssigned = (req, res, next) => {
   if (!req.user) {
     return res.status(401).json({
@@ -120,7 +102,7 @@ exports.verifyWarehouseAssigned = (req, res, next) => {
   next();
 };
 
-// Middleware chỉ cho phép Admin
+//Only Admin
 exports.onlyAdmin = (req, res, next) => {
   if (!req.user) {
     return res.status(401).json({

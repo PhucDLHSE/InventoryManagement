@@ -1,4 +1,3 @@
-// src/middleware/validateWarehouse.js
 const { WAREHOUSE_MESSAGES } = require('../constants/messages');
 const HTTP_STATUS = require('../utils/httpStatus');
 const { sendResponse } = require('../utils/responseHandler');

@@ -46,8 +46,6 @@ class User {
         `);
 
         console.log('Query result:', rows); 
-
-        // Chuẩn hóa dữ liệu trả về
         const formattedResponse = {
             success: true,
             users: rows.map(user => ({
@@ -76,7 +74,7 @@ class User {
 
         return formattedResponse;
     } catch (error) {
-        console.error('Error in getAll:', error); 
+        console.error('Không thể lấy danh sách người dùng:', error); 
         throw error;
     }
 }

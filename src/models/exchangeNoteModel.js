@@ -20,7 +20,7 @@ class ExchangeNote {
     }
   }
 
-  // Tạo mã cho item trong phiếu
+  // Tạo code cho item trong phiếu
   static async generateNoteItemCode() {
     try {
       const timestamp = new Date().getTime();
@@ -36,10 +36,10 @@ class ExchangeNote {
         return this.generateNoteItemCode();
       }
       
-      console.log("Mã NoteItem mới được tạo:", newCode);
+      console.log("NoteItem_code được tạo:", newCode);
       return newCode;
     } catch (error) {
-      console.error('Lỗi khi tạo mã item phiếu:', error);
+      console.error('Lỗi khi tạo NoteItem_code:', error);
       throw error;
     }
   }

@@ -1,7 +1,3 @@
-/**
- * Tạo câu truy vấn select cho thông tin người dùng (không bao gồm mật khẩu)
- * @returns {string} SQL query
- */
 exports.generateSelectUserFields = () => {
     return `
       SELECT 
@@ -15,10 +11,6 @@ exports.generateSelectUserFields = () => {
     `;
   };
   
-  /**
-   * Tạo câu truy vấn select cho thông tin người dùng (bao gồm mật khẩu)
-   * @returns {string} SQL query
-   */
   exports.generateSelectUserWithPassword = () => {
     return `
       SELECT 

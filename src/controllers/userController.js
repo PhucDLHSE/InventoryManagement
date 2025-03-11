@@ -1,7 +1,6 @@
 const User = require('../models/userModel');
 const { USER_MESSAGES } = require('../constants/messages');
 
-// Controller methods
 exports.getAllUsers = async (req, res) => {
   try {
     const users = await User.getAll();
@@ -45,12 +44,7 @@ exports.getUserByCode = async (req, res) => {
 
 exports.createUser = async (req, res) => {
   try {
-    // Không cần chuyển đổi từ fullName sang full_name vì request đã có đúng trường full_name
-    // Model sẽ xử lý trực tiếp
-    
     const newUser = await User.create(req.body);
-    
-    // Chuyển đổi full_name thành fullName cho API consistency nếu cần
     if (newUser.full_name) {
       newUser.fullName = newUser.full_name;
       delete newUser.full_name;
@@ -63,7 +57,6 @@ exports.createUser = async (req, res) => {
   } catch (error) {
     console.error('Error creating user:', error);
     
-    // Handle specific errors
     if (error.message.includes('exists')) {
       return res.status(409).json({
         success: false,
@@ -81,12 +74,8 @@ exports.createUser = async (req, res) => {
 exports.updateUser = async (req, res) => {
   try {
     const { code } = req.params;
-    
-    // Sử dụng trực tiếp req.body mà không cần chuyển đổi
-    
     const updatedUser = await User.update(code, req.body);
     
-    // Chuyển đổi full_name thành fullName cho API consistency
     if (updatedUser.full_name) {
       updatedUser.fullName = updatedUser.full_name;
       delete updatedUser.full_name;
@@ -125,7 +114,6 @@ exports.deleteUser = async (req, res) => {
     const { code } = req.params;
     const deletedUser = await User.delete(code);
     
-    // Chuyển đổi full_name thành fullName cho API consistency
     if (deletedUser.full_name) {
       deletedUser.fullName = deletedUser.full_name;
       delete deletedUser.full_name;

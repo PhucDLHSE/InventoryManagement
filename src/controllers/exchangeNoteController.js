@@ -185,14 +185,14 @@ const exchangeNoteController = {
   } catch (error) {
     console.error("Lỗi khi từ chối phiếu:", error);
     
-    if (error.message.includes("Chỉ có thể từ chối phiếu đã được duyệt")) {
-      return sendResponse(
-        res,
-        HTTP_STATUS.BAD_REQUEST,
-        false,
-        error.message
-      );
-    } else if (error.message.includes("Phiếu không tồn tại")) {
+      if (error.message.includes("Chỉ có thể từ chối phiếu đã được duyệt")) {
+        return sendResponse(
+          res,
+          HTTP_STATUS.BAD_REQUEST,
+          false,
+          error.message
+        );
+      } else if (error.message.includes("Phiếu không tồn tại")) {
       return sendResponse(
         res,
         HTTP_STATUS.NOT_FOUND,
@@ -205,9 +205,9 @@ const exchangeNoteController = {
         HTTP_STATUS.SERVER_ERROR,
         false,
         "Lỗi khi từ chối phiếu: " + error.message
-      );
+        );
+      }
     }
-  }
   })
 };
 

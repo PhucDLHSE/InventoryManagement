@@ -1,7 +1,6 @@
 const { USER_MESSAGES } = require('../constants/messages');
 const { ROLE_TYPES } = require('../constants/roles');
 
-// Xác thực dữ liệu khi tạo người dùng mới
 exports.validateCreateUser = (req, res, next) => {
   try {
     const { role_type, user_name, full_name, email, password } = req.body;

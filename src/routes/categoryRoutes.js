@@ -8,7 +8,7 @@ router.put('/:code', verifyToken, verifyManager, categoryController.updateCatego
 router.delete('/:code', verifyToken, verifyManager, categoryController.deleteCategory);
 
 
-router.get('/', categoryController.getAllCategories);
+router.get('/', verifyToken, categoryController.getAllCategories);
 router.get('/:code', verifyToken, categoryController.getCategoryByCode);
 
 module.exports = router;
