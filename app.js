@@ -1,3 +1,4 @@
+
 const express = require('express');
 const cors = require('cors');
 const helmet = require('helmet');
@@ -23,14 +24,12 @@ app.use('/api/products', require('./src/routes/productRoutes'));
 app.use('/api/exchange-notes', require('./src/routes/exchangeNoteRoutes'));
 app.use("/", require('./src/routes/indexRoutes'));
 
+app.use("/favicon.ico", express.static(path.join(__dirname, "public", "favicon.ico")));
+app.get("/favicon.ico", (req, res) => res.status(204).end());
+
 // Middleware log request
 app.use((req, res, next) => {
   console.log(`${req.method} ${req.url}`);
-  next();
-});
-
-app.use((req, res, next) => {
-  console.log("Middleware chạy:", req.path);
   next();
 });
 
@@ -49,25 +48,6 @@ app.use((err, req, res, next) => {
     message: err.message || 'Lỗi máy chủ',
     error: process.env.NODE_ENV === 'development' ? err.message : undefined
   });
-});
-
-// Thêm route kiểm tra kết nối database
-app.get('/api/check-db', async (req, res) => {
-  try {
-    const [rows] = await pool.query('SELECT 1 as connection_test');
-    res.json({ 
-      status: 'success', 
-      message: 'Kết nối cơ sở dữ liệu thành công',
-      data: rows[0]
-    });
-  } catch (error) {
-    console.error('Lỗi kết nối database:', error);
-    res.status(500).json({ 
-      status: 'error', 
-      message: 'Không thể kết nối đến cơ sở dữ liệu', 
-      error: error.message 
-    });
-  }
 });
 
 const PORT = process.env.PORT || 8080;
