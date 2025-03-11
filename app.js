@@ -51,6 +51,25 @@ app.use((err, req, res, next) => {
   });
 });
 
+// Thêm route kiểm tra kết nối database
+app.get('/api/check-db', async (req, res) => {
+  try {
+    const [rows] = await pool.query('SELECT 1 as connection_test');
+    res.json({ 
+      status: 'success', 
+      message: 'Kết nối cơ sở dữ liệu thành công',
+      data: rows[0]
+    });
+  } catch (error) {
+    console.error('Lỗi kết nối database:', error);
+    res.status(500).json({ 
+      status: 'error', 
+      message: 'Không thể kết nối đến cơ sở dữ liệu', 
+      error: error.message 
+    });
+  }
+});
+
 const PORT = process.env.PORT || 8080;
 
 app.listen(PORT, () => {
