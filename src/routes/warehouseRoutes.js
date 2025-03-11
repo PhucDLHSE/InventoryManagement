@@ -11,7 +11,7 @@ router.put('/:code', verifyToken, verifyAdmin, warehouseController.updateWarehou
 router.delete('/:code', verifyToken, verifyAdmin, warehouseController.deleteWarehouse);
 
 // All users
-router.get('/', verifyToken, warehouseController.getAllWarehouses);
+router.get('/', warehouseController.getAllWarehouses);
 router.get('/:code', verifyToken, warehouseController.getWarehouseByCode);
 
 router.post('/', verifyToken, verifyAdmin, validateCreateWarehouse, warehouseController.createWarehouse);

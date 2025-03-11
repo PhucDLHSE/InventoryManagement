@@ -10,7 +10,7 @@ router.put('/:code', verifyToken, verifyManager, productTypeController.updatePro
 router.delete('/:code', verifyToken, verifyManager, productTypeController.deleteProductType);
 
 // All users 
-router.get('/',verifyToken, productTypeController.getAllProductTypes);
+router.get('/', productTypeController.getAllProductTypes);
 router.get('/:code', verifyToken, productTypeController.getProductTypeByCode);
 router.get('/category/:categoryCode', verifyToken, productTypeController.getProductTypesByCategory);
 
