@@ -147,49 +147,50 @@ class Warehouse {
 
     static async update(warehouseCode, warehouseData) {
       try {
-        const { warehouse_name, address } = warehouseData;
-        const updateFields = [];
-        const values = [];
-
-        if (warehouse_name !== undefined) {
-          const [existingName] = await pool.query(
-            'SELECT COUNT(*) as count FROM Warehouse WHERE warehouse_name = ? AND warehouse_code != ?',
-            [warehouse_name, warehouseCode]
-          );
-          if (existingName[0].count > 0) {
-            throw new Error(WAREHOUSE_MESSAGES.NAME_EXISTS);
+          const { warehouse_name, address } = warehouseData;
+          const updateFields = [];
+          const values = [];
+  
+          if (warehouse_name !== undefined) {
+              const [existingName] = await pool.query(
+                  'SELECT COUNT(*) as count FROM Warehouse WHERE warehouse_name = ? AND warehouse_code != ?',
+                  [warehouse_name, warehouseCode]
+              );
+              if (existingName[0].count > 0) {
+                  throw new Error(WAREHOUSE_MESSAGES.NAME_EXISTS);
+              }
+              updateFields.push('warehouse_name = ?');
+              values.push(warehouse_name);
           }
-          updateFields.push('warehouse_name = ?');
-          values.push(warehouse_name);
-        } 
-
-        if (address !== undefined) {
-          updateFields.push('address = ?');
-          values.push(address);
-        }
-
-        if (updateFields.length === 0) {
-          throw new Error(WAREHOUSE_MESSAGES.NO_UPDATE_DATA);
-        }
-
-        values.push(warehouseCode);
-        const query = `
-          UPDATE Warehouse 
-          SET ${updateFields.join(', ')}
-          WHERE warehouse_code = ?
-        `;
-        const [result] = await pool.query(query, values);
-
-        if (result.affectedRows === 0) {
-          throw new Error(WAREHOUSE_MESSAGES.NOT_FOUND);
-        }
-
-        return this.getByCode(warehouseCode);
-        } catch (error) {
+  
+          if (address !== undefined) {
+              updateFields.push('address = ?');
+              values.push(address);
+          }
+  
+          if (updateFields.length === 0) {
+              throw new Error(WAREHOUSE_MESSAGES.NO_UPDATE_DATA);
+          }
+  
+          values.push(warehouseCode);
+          const query = `
+              UPDATE Warehouse 
+              SET ${updateFields.join(', ')}
+              WHERE warehouse_code = ?
+          `;
+          const [result] = await pool.query(query, values);
+  
+          if (result.affectedRows === 0) {
+              throw new Error(WAREHOUSE_MESSAGES.NOT_FOUND);
+          }
+  
+          return this.getByCode(warehouseCode);
+      } catch (error) {
           console.error('Update warehouse error:', error);
           throw error;
-        }
-    }
+      }
+  }
+  
 
     static async delete(warehouseCode) {
       try {
@@ -206,14 +207,6 @@ class Warehouse {
           throw new Error(WAREHOUSE_MESSAGES.HAS_USERS);
         }
 
-        const [stockCount] = await pool.query(
-          'SELECT COUNT(*) as count FROM Stock WHERE warehouse_code = ?',
-          [warehouseCode]
-        );
-        if (stockCount[0].count > 0) {
-          throw new Error(WAREHOUSE_MESSAGES.HAS_STOCK);
-        }
-
         const [result] = await pool.query(
           'DELETE FROM Warehouse WHERE warehouse_code = ?',
           [warehouseCode]
@@ -228,7 +221,7 @@ class Warehouse {
 
     static async getProductsInWarehouse(warehouse_code) {
       try {
-        console.log("🔍 Đang lấy danh sách sản phẩm trong kho:", warehouse_code);
+        console.log("Đang lấy danh sách sản phẩm trong kho:", warehouse_code);
         
         // Truy vấn dựa trên phiếu nhập/xuất đã hoàn thành
         const [products] = await pool.query(`
