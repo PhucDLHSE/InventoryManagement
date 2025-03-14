@@ -23,8 +23,6 @@ const { verifyToken, verifyManager } = require('../middleware/authMiddleware');
  *           example: 500000
  *         
  */
-// Admin, Manager
-router.use(verifyToken);
 
 /**
  * @swagger
