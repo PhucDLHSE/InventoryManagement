@@ -5,7 +5,39 @@ const { sendResponse } = require('../utils/responseHandler');
 const asyncHandler = require('../utils/asyncHandler');
 
 const productTypeController = {
-  getAllProductTypes: asyncHandler(async (req, res) => {
+  getProductTypes: asyncHandler(async (req, res) => {
+    const { code, categoryCode } = req.body; 
+
+    if (code) {
+      const productType = await ProductType.getByCode(code);
+      if (!productType) {
+        return sendResponse(
+          res,
+          HTTP_STATUS.NOT_FOUND,
+          false,
+          PRODUCT_TYPE_MESSAGES.NOT_FOUND
+        );
+      }
+      return sendResponse(
+        res,
+        HTTP_STATUS.OK,
+        true,
+        PRODUCT_TYPE_MESSAGES.GET_SUCCESS,
+        productType
+      );
+    }
+
+    if (categoryCode) {
+      const productTypes = await ProductType.getByCategory(categoryCode);
+      return sendResponse(
+        res,
+        HTTP_STATUS.OK,
+        true,
+        PRODUCT_TYPE_MESSAGES.GET_BY_CATEGORY_SUCCESS,
+        productTypes
+      );
+    }
+
     const productTypes = await ProductType.getAll();
     return sendResponse(
       res,
@@ -13,25 +45,6 @@ const productTypeController = {
       true,
       PRODUCT_TYPE_MESSAGES.GET_ALL_SUCCESS,
       productTypes
-    );
-  }),
-
-  getProductTypeByCode: asyncHandler(async (req, res) => {
-    const productType = await ProductType.getByCode(req.params.code);
-    if (!productType) {
-      return sendResponse(
-        res,
-        HTTP_STATUS.NOT_FOUND,
-        false,
-        PRODUCT_TYPE_MESSAGES.NOT_FOUND
-      );
-    }
-    return sendResponse(
-      res,
-      HTTP_STATUS.OK,
-      true,
-      PRODUCT_TYPE_MESSAGES.GET_SUCCESS,
-      productType
     );
   }),
 
@@ -65,17 +78,6 @@ const productTypeController = {
       true,
       PRODUCT_TYPE_MESSAGES.DELETE_SUCCESS,
       deletedProductType
-    );
-  }),
-
-  getProductTypesByCategory: asyncHandler(async (req, res) => {
-    const productTypes = await ProductType.getByCategory(req.params.categoryCode);
-    return sendResponse(
-      res,
-      HTTP_STATUS.OK,
-      true,
-      PRODUCT_TYPE_MESSAGES.GET_BY_CATEGORY_SUCCESS,
-      productTypes
     );
   })
 };

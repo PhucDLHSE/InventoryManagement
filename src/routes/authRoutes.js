@@ -1,12 +1,5 @@
 /**
  * @swagger
- * tags:
- *   name: Authentication
- *   description: API xác thực người dùng
- */
-
-/**
- * @swagger
  * /api/auth/login:
  *   post:
  *     summary: Đăng nhập hệ thống
@@ -18,7 +11,7 @@
  *           schema:
  *             type: object
  *             properties:
- *               username:
+ *               user_name:
  *                 type: string
  *                 example: "admin"
  *               password:

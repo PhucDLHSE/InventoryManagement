@@ -1,3 +1,8 @@
+const express = require('express');
+const router = express.Router();
+const categoryController = require('../controllers/categoryController');
+const { verifyToken, verifyManager } = require('../middleware/authMiddleware');
+
 /**
  * @swagger
  * components:
@@ -16,68 +21,6 @@
  *         category_name:
  *           type: string
  *           example: Áo dài
- */
-
-/**
- * @swagger
- * tags:
- *   name: Categories
- *   description: API quản lý danh mục sản phẩm
- */
-
-/**
- * @swagger
- * /api/categories:
- *   get:
- *     summary: Lấy danh sách tất cả danh mục
- *     tags: [Categories]
- *     responses:
- *       200:
- *         description: Danh sách danh mục
- *         content:
- *           application/json:
- *             schema:
- *               type: object
- *               properties:
- *                 success:
- *                   type: boolean
- *                   example: true
- *                 data:
- *                   type: array
- *                   items:
- *                     $ref: '#/components/schemas/Category'
- */
-
-/**
- * @swagger
- * /api/categories/{code}:
- *   get:
- *     summary: Lấy thông tin danh mục theo mã
- *     tags: [Categories]
- *     security:
- *       - bearerAuth: []
- *     parameters:
- *       - in: path
- *         name: code
- *         schema:
- *           type: string
- *         required: true
- *         description: Mã danh mục
- *     responses:
- *       200:
- *         description: Thông tin danh mục
- *         content:
- *           application/json:
- *             schema:
- *               type: object
- *               properties:
- *                 success:
- *                   type: boolean
- *                   example: true
- *                 data:
- *                   $ref: '#/components/schemas/Category'
- *       404:
- *         description: Không tìm thấy danh mục
  */
 
 /**
@@ -133,7 +76,7 @@
  *         schema:
  *           type: string
  *         required: true
- *         description: Mã danh mục
+ *         description: Mã danh mục cần cập nhật
  *     requestBody:
  *       required: true
  *       content:
@@ -141,9 +84,10 @@
  *           schema:
  *             type: object
  *             properties:
- *               name:
+ *               category_name:
  *                 type: string
- *                 example: Áo dài
+ *                 description: Tên danh mục mới
+ *                 example: "Áo sơ mi"
  *     responses:
  *       200:
  *         description: Thông tin danh mục đã được cập nhật
@@ -155,6 +99,9 @@
  *                 success:
  *                   type: boolean
  *                   example: true
+ *                 message:
+ *                   type: string
+ *                   example: "Cập nhật danh mục thành công"
  *                 data:
  *                   $ref: '#/components/schemas/Category'
  *       400:
@@ -164,6 +111,7 @@
  *       404:
  *         description: Không tìm thấy danh mục
  */
+
 
 /**
  * @swagger
@@ -200,16 +148,53 @@
  *         description: Không tìm thấy danh mục
  */
 
-const express = require('express');
-const router = express.Router();
-const categoryController = require('../controllers/categoryController');
-const { verifyToken, verifyManager } = require('../middleware/authMiddleware');
-
 router.post('/', verifyToken, verifyManager, categoryController.createCategory);
 router.put('/:code', verifyToken, verifyManager, categoryController.updateCategory);
 router.delete('/:code', verifyToken, verifyManager, categoryController.deleteCategory);
 
-router.get('/', categoryController.getAllCategories);
-router.get('/:code', verifyToken, categoryController.getCategoryByCode);
+/**
+ * @swagger
+ * /api/categories:
+ *   get:
+ *     summary: Lấy danh sách danh mục hoặc danh mục cụ thể
+ *     tags: [Categories]
+ *     description: Lấy tất cả danh mục nếu không có request body. Nếu có `code` trong body, trả về danh mục theo `category_code`.
+ *     requestBody:
+ *       required: false
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               code:
+ *                 type: string
+ *                 description: Mã danh mục cần lấy
+ *                 example: "ao_dai"
+ *     responses:
+ *       200:
+ *         description: Danh sách danh mục hoặc một danh mục cụ thể
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: true
+ *                 message:
+ *                   type: string
+ *                   example: "Lấy danh sách danh mục thành công"
+ *                 data:
+ *                   oneOf:
+ *                     - type: array
+ *                       items:
+ *                         $ref: '#/components/schemas/Category'
+ *                     - $ref: '#/components/schemas/Category'
+ *       400:
+ *         description: Dữ liệu không hợp lệ
+ *       404:
+ *         description: Không tìm thấy danh mục
+ */
+router.get('/', categoryController.getCategories);
 
 module.exports = router;

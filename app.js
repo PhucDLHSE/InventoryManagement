@@ -18,7 +18,7 @@ const swaggerOptions = {
       description: 'API quản lý kho hàng',
       contact: {
         name: 'API Support',
-        email: 'support@example.com'
+        email: 'phucdlhse171826@fpt.edu.vn'
       }
     },
     servers: [

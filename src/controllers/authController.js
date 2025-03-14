@@ -1,5 +1,7 @@
 const User = require('../models/userModel');
 const jwt = require('jsonwebtoken');
+const bcrypt = require('bcrypt');
+
 const JWT_SECRET = process.env.JWT_SECRET || 'your-jwt-secret-key';
 
 exports.login = async (req, res) => {
@@ -11,6 +13,8 @@ exports.login = async (req, res) => {
         message: 'Vui lòng nhập username và password'
       });
     }
+
+    // Tìm user theo username
     const user = await User.findByUsernameWithPassword(user_name);
     if (!user) {
       return res.status(401).json({
@@ -18,8 +22,9 @@ exports.login = async (req, res) => {
         message: 'Thông tin đăng nhập không hợp lệ'
       });
     }
-    const isPasswordValid = (password === user.password);
 
+    // So sánh password sử dụng bcrypt
+    const isPasswordValid = await bcrypt.compare(password, user.password);
     if (!isPasswordValid) {
       return res.status(401).json({
         success: false,
@@ -27,29 +32,35 @@ exports.login = async (req, res) => {
       });
     }
 
-    // JWT token
+    // Kiểm tra role_type (giả sử user có trường role_type)
+    if (!user.role_type) {
+      return res.status(403).json({
+        success: false,
+        message: 'Tài khoản không có quyền truy cập'
+      });
+    }
+
+    // Tạo JWT token
     const token = jwt.sign(
       {
         userId: user.user_id,
         userCode: user.user_code,
-        role: user.role_type,
+        role: user.role_type, // Sử dụng role_type thay vì role_id
         username: user.user_name,
         warehouseCode: user.warehouse_code
       },
       JWT_SECRET,
-      { expiresIn: '24h' } 
+      { expiresIn: '24h' }
     );
 
-    if (user.full_name) {
-      user.fullName = user.full_name;
-      delete user.full_name;
-    }
+    // Chuẩn hóa dữ liệu user trước khi trả về
+    const userData = { ...user };
+    delete userData.password;
 
-    delete user.password;
     return res.status(200).json({
       success: true,
       token,
-      user
+      user: userData
     });
   } catch (error) {
     console.error('Login error:', error);
@@ -69,10 +80,6 @@ exports.getCurrentUser = async (req, res) => {
         success: false,
         message: 'Không tìm thấy thông tin người dùng'
       });
-    }
-    if (user.full_name) {
-      user.fullName = user.full_name;
-      delete user.full_name;
     }
 
     return res.status(200).json({

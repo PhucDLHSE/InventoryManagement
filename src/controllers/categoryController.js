@@ -5,34 +5,36 @@ const { sendResponse } = require('../utils/responseHandler');
 const asyncHandler = require('../utils/asyncHandler');
 
 const categoryController = {
-  getAllCategories: asyncHandler(async (req, res) => {
-    const categories = await Category.getAll();
-    return sendResponse(
-      res,
-      HTTP_STATUS.OK,
-      true,
-      CATEGORY_MESSAGES.GET_ALL_SUCCESS,
-      categories
-    );
-  }),
+  getCategories: asyncHandler(async (req, res) => {
+    const { category_code } = req.body; 
 
-  getCategoryByCode: asyncHandler(async (req, res) => {
-    const category = await Category.getByCode(req.params.code);
-    if (!category) {
+    if (category_code) {
+      const category = await Category.getByCode(category_code);
+      if (!category) {
+        return sendResponse(
+          res,
+          HTTP_STATUS.NOT_FOUND,
+          false,
+          CATEGORY_MESSAGES.NOT_FOUND
+        );
+      }
       return sendResponse(
         res,
-        HTTP_STATUS.NOT_FOUND,
-        false,
-        CATEGORY_MESSAGES.NOT_FOUND
+        HTTP_STATUS.OK,
+        true,
+        CATEGORY_MESSAGES.GET_SUCCESS,
+        category
+      );
+    } else {
+      const categories = await Category.getAll();
+      return sendResponse(
+        res,
+        HTTP_STATUS.OK,
+        true,
+        CATEGORY_MESSAGES.GET_ALL_SUCCESS,
+        categories
       );
     }
-    return sendResponse(
-      res,
-      HTTP_STATUS.OK,
-      true,
-      CATEGORY_MESSAGES.GET_SUCCESS,
-      category
-    );
   }),
 
   createCategory: asyncHandler(async (req, res) => {

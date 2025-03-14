@@ -1,3 +1,7 @@
+const express = require('express');
+const router = express.Router();
+const productTypeController = require('../controllers/productTypeController');
+const { verifyToken, verifyManager } = require('../middleware/authMiddleware');
 /**
  * @swagger
  * components:
@@ -19,100 +23,8 @@
  *           example: 500000
  *         
  */
-
-/**
- * @swagger
- * tags:
- *   name: Product Types
- *   description: API quản lý loại sản phẩm
- */
-
-/**
- * @swagger
- * /api/product-types:
- *   get:
- *     summary: Lấy danh sách tất cả loại sản phẩm
- *     tags: [Product Types]
- *     responses:
- *       200:
- *         description: Danh sách loại sản phẩm
- *         content:
- *           application/json:
- *             schema:
- *               type: object
- *               properties:
- *                 success:
- *                   type: boolean
- *                   example: true
- *                 data:
- *                   type: array
- *                   items:
- *                     $ref: '#/components/schemas/ProductType'
- */
-
-/**
- * @swagger
- * /api/product-types/{code}:
- *   get:
- *     summary: Lấy thông tin loại sản phẩm theo mã
- *     tags: [Product Types]
- *     security:
- *       - bearerAuth: []
- *     parameters:
- *       - in: path
- *         name: code
- *         schema:
- *           type: string
- *         required: true
- *         description: Mã loại sản phẩm
- *     responses:
- *       200:
- *         description: Thông tin loại sản phẩm
- *         content:
- *           application/json:
- *             schema:
- *               type: object
- *               properties:
- *                 success:
- *                   type: boolean
- *                   example: true
- *                 data:
- *                   $ref: '#/components/schemas/ProductType'
- *       404:
- *         description: Không tìm thấy loại sản phẩm
- */
-
-/**
- * @swagger
- * /api/product-types/category/{categoryCode}:
- *   get:
- *     summary: Lấy danh sách loại sản phẩm theo danh mục
- *     tags: [Product Types]
- *     security:
- *       - bearerAuth: []
- *     parameters:
- *       - in: path
- *         name: categoryCode
- *         schema:
- *           type: string
- *         required: true
- *         description: Mã danh mục
- *     responses:
- *       200:
- *         description: Danh sách loại sản phẩm
- *         content:
- *           application/json:
- *             schema:
- *               type: object
- *               properties:
- *                 success:
- *                   type: boolean
- *                   example: true
- *                 data:
- *                   type: array
- *                   items:
- *                     $ref: '#/components/schemas/ProductType'
- */
+// Admin, Manager
+router.use(verifyToken);
 
 /**
  * @swagger
@@ -159,6 +71,7 @@
  *       401:
  *         description: Không có quyền truy cập
  */
+router.post('/', verifyToken, verifyManager, productTypeController.createProductType);
 
 /**
  * @swagger
@@ -211,6 +124,7 @@
  *       404:
  *         description: Không tìm thấy loại sản phẩm
  */
+router.put('/:code', verifyToken, verifyManager, productTypeController.updateProductType);
 
 /**
  * @swagger
@@ -246,21 +160,56 @@
  *       404:
  *         description: Không tìm thấy loại sản phẩm
  */
-
-const express = require('express');
-const router = express.Router();
-const productTypeController = require('../controllers/productTypeController');
-const { verifyToken, verifyManager } = require('../middleware/authMiddleware');
-
-// Admin, Manager
-router.use(verifyToken);
-router.post('/', verifyToken, verifyManager, productTypeController.createProductType);
-router.put('/:code', verifyToken, verifyManager, productTypeController.updateProductType);
 router.delete('/:code', verifyToken, verifyManager, productTypeController.deleteProductType);
 
+/**
+ * @swagger
+ * /api/product-types:
+ *   get:
+ *     summary: Lấy danh sách loại sản phẩm hoặc loại sản phẩm cụ thể
+ *     tags: [Product Types]
+ *     description: Nếu không có request body, API sẽ trả về tất cả loại sản phẩm. Nếu có `code` hoặc `categoryCode` trong body, API sẽ lọc theo mã sản phẩm hoặc danh mục.
+ *     requestBody:
+ *       required: false
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               code:
+ *                 type: string
+ *                 description: Mã loại sản phẩm cần lấy
+ *                 example: "PT0001"
+ *               categoryCode:
+ *                 type: string
+ *                 description: Mã danh mục cần lọc
+ *                 example: "CAT01"
+ *     responses:
+ *       200:
+ *         description: Danh sách loại sản phẩm hoặc một loại sản phẩm cụ thể
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: true
+ *                 message:
+ *                   type: string
+ *                   example: "Lấy danh sách loại sản phẩm thành công"
+ *                 data:
+ *                   oneOf:
+ *                     - type: array
+ *                       items:
+ *                         $ref: '#/components/schemas/ProductType'
+ *                     - $ref: '#/components/schemas/ProductType'
+ *       400:
+ *         description: Dữ liệu không hợp lệ
+ *       404:
+ *         description: Không tìm thấy loại sản phẩm
+ */
 // All users 
-router.get('/', productTypeController.getAllProductTypes);
-router.get('/:code', verifyToken, productTypeController.getProductTypeByCode);
-router.get('/category/:categoryCode', verifyToken, productTypeController.getProductTypesByCategory);
+router.get('/', productTypeController.getProductTypes);
 
 module.exports = router;

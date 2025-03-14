@@ -18,13 +18,13 @@
  *           example: PR0005
  *         product_name:
  *           type: string
- *           example: Quần jeans nam dài rách rối
+ *           example: Quần jeans nam dài
  *         size:
  *           type: string
  *           example: "30"
  *         color:
  *           type: string
- *           example: Xanh đen
+ *           example: Xanh
  *         quantity:
  *           type: integer
  *           example: 100
@@ -33,7 +33,7 @@
  *           example: PT0007
  *         created_by:
  *           type: string
- *           example: DF0001
+ *           example: AD0001
  */
 const express = require('express');
 const router = express.Router();
