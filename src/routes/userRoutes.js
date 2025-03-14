@@ -4,14 +4,12 @@ const userController = require('../controllers/userController');
 const { validateCreateUser, validateUpdateUser } = require('../middleware/validateUser');
 const { verifyToken, onlyAdmin } = require('../middleware/authMiddleware');
 
-router.use(verifyToken);
-router.use(onlyAdmin);
 
 router.get('/', verifyToken, onlyAdmin ,userController.getAllUsers);
-router.get('/:code', onlyAdmin, userController.getUserByCode);
-router.post('/', onlyAdmin, validateCreateUser, userController.createUser);
-router.put('/:code', onlyAdmin, validateUpdateUser, userController.updateUser);
-router.delete('/:code', onlyAdmin, userController.deleteUser);
-router.put('/:code/warehouse', onlyAdmin, validateUpdateUser, userController.updateUser);
+router.get('/:code', verifyToken, onlyAdmin, userController.getUserByCode);
+router.post('/', validateCreateUser, userController.createUser);
+router.put('/:code', verifyToken, onlyAdmin, validateUpdateUser, userController.updateUser);
+router.delete('/:code', verifyToken, onlyAdmin, userController.deleteUser);
+router.put('/:code/warehouse', verifyToken, onlyAdmin, validateUpdateUser, userController.updateUser);
 
 module.exports = router

@@ -24,7 +24,6 @@ const { verifyToken, verifyManager } = require('../middleware/authMiddleware');
  *         
  */
 
-
 /**
  * @swagger
  * /api/product-types:
