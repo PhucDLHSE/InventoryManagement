@@ -5,6 +5,7 @@ const { USER_MESSAGES } = require('../constants/messages');
 const { ROLE_TYPES } = require('../constants/roles');
 const { generateSelectUserFields, generateSelectUserWithPassword } = require('../utils/queryUtils');
 const { v4: uuidv4 } = require('uuid');
+const bcrypt = require('bcrypt');
 
 class User {
   static async generateUserCode(role_type) {
@@ -119,67 +120,77 @@ class User {
   
 
   // Create
-  static async create(userData) {
-    try {
-      // Check required fields (chắc chắn tên trường khớp với request)
-      const requiredFields = ['role_type', 'user_name', 'full_name', 'email', 'password'];
-      const missingFields = requiredFields.filter(field => !userData[field]);
-      
-      if (missingFields.length > 0) {
-        throw new Error(`Missing required fields: ${missingFields.join(', ')}`);
-      }
-      
-      const { role_type, user_name, full_name, email, password, warehouse_code = null } = userData;
-      
-      // Validate role_type
-      if (!Object.values(ROLE_TYPES).includes(role_type)) {
-        throw new Error(USER_MESSAGES.ROLE_TYPE_INVALID);
-      }
-  
-      // Get role_id from role_type
-      const [roleResult] = await pool.query(
-        'SELECT role_id FROM Role WHERE role_type = ?',
-        [role_type]
-      );
-      
-      if (!roleResult[0]) {
-        throw new Error(USER_MESSAGES.ROLE_TYPE_INVALID);
-      }
-      
-      const role_id = roleResult[0].role_id;
-  
-      // Check if username exists
-      const userExists = await this.findByUsername(user_name);
-      if (userExists) {
-        throw new Error(USER_MESSAGES.USERNAME_EXISTS);
-      }
-  
-      // Generate user_code based on role_type
-      const user_code = await this.generateUserCode(role_type);
-      
-      // Generate UUID for user_id
-      const user_id = uuidv4();
-  
-      // Set status based on warehouse_code
-      const status = warehouse_code ? STATUS.ACTIVE : STATUS.INACTIVE;
-  
-      // Insert user
-      await pool.query(
-        `INSERT INTO User (
-          user_id, user_code, role_id, user_name, 
-          full_name, email, password, warehouse_code, 
-          status
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-        [user_id, user_code, role_id, user_name, full_name, email, password, warehouse_code, status]
-      );
-  
-      // Return created user
-      return this.getByCode(user_code);
-    } catch (error) {
-      console.error("Create user error:", error);
-      throw error;
+static async create(userData) {
+  try {
+    // Check required fields
+    const requiredFields = ['role_type', 'user_name', 'full_name', 'email'];
+    const missingFields = requiredFields.filter(field => !userData[field]);
+    
+    if (missingFields.length > 0) {
+      throw new Error(`Missing required fields: ${missingFields.join(', ')}`);
     }
+
+    let { role_type, user_name, full_name, email, password, warehouse_code = null } = userData;
+
+    // Validate role_type
+    if (!Object.values(ROLE_TYPES).includes(role_type)) {
+      throw new Error(USER_MESSAGES.ROLE_TYPE_INVALID);
+    }
+
+    // Get role_id from role_type
+    const [roleResult] = await pool.query(
+      'SELECT role_id FROM Role WHERE role_type = ?',
+      [role_type]
+    );
+
+    if (!roleResult[0]) {
+      throw new Error(USER_MESSAGES.ROLE_TYPE_INVALID);
+    }
+
+    const role_id = roleResult[0].role_id;
+
+    // Check if username exists
+    const userExists = await this.findByUsername(user_name);
+    if (userExists) {
+      throw new Error(USER_MESSAGES.USERNAME_EXISTS);
+    }
+
+    // Generate user_code based on role_type
+    const user_code = await this.generateUserCode(role_type);
+
+    // Generate UUID for user_id
+    const user_id = uuidv4();
+
+    // Set status based on warehouse_code
+    const status = warehouse_code ? STATUS.ACTIVE : STATUS.INACTIVE;
+
+    // Nếu không có mật khẩu, tạo mật khẩu ngẫu nhiên
+    if (!password) {
+      password = Math.random().toString(36).slice(-8); // Mật khẩu 8 ký tự ngẫu nhiên
+      console.log(`Mật khẩu mới tạo: ${password}`); // Debug (Có thể in ra email để gửi)
+    }
+
+    // Mã hóa mật khẩu trước khi lưu vào database
+    const hashedPassword = await bcrypt.hash(password, 10);
+
+    // Insert user
+    await pool.query(
+      `INSERT INTO User (
+        user_id, user_code, role_id, user_name, 
+        full_name, email, password, warehouse_code, 
+        status
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      [user_id, user_code, role_id, user_name, full_name, email, hashedPassword, warehouse_code, status]
+    );
+
+    // Return created user
+    return this.getByCode(user_code);
+  } catch (error) {
+    console.error("Create user error:", error);
+    throw error;
   }
+}
+
   //Update
   static async update(userCode, userData) {
     const updateFields = [];

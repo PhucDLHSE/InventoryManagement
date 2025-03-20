@@ -24,7 +24,8 @@ exports.login = async (req, res) => {
     }
 
     // So sánh password sử dụng bcrypt
-    if (password !== user.password) {
+    const isPasswordValid = await bcrypt.compare(password, user.password);
+    if (!isPasswordValid) {
       return res.status(401).json({
         success: false,
         message: 'Thông tin đăng nhập không hợp lệ'
