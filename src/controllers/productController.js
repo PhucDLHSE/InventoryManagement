@@ -4,6 +4,7 @@ const HTTP_STATUS = require('../utils/httpStatus');
 const { sendResponse } = require('../utils/responseHandler');
 const asyncHandler = require('../utils/asyncHandler');
 
+
 const productController = {
 
   createProduct: asyncHandler(async (req, res) => {
@@ -252,38 +253,45 @@ const productController = {
     }
   }),
 
-  // Lấy thông tin sản phẩm và các kho chứa nó
   getProductLocations: asyncHandler(async (req, res) => {
-  const { code } = req.params;
-  
-  if (!code) {
-    return sendResponse(
-      res,
-      HTTP_STATUS.BAD_REQUEST,
-      false,
-      "Thiếu mã sản phẩm"
-    );
-  }
-  
-  const productInfo = await Product.getProductWithWarehouses(code);
-  
-  if (!productInfo) {
-    return sendResponse(
-      res,
-      HTTP_STATUS.NOT_FOUND,
-      false,
-      "Sản phẩm không tồn tại"
-    );
-  }
-  
-  return sendResponse(
-    res,
-    HTTP_STATUS.OK,
-    true,
-    "Lấy thông tin sản phẩm và kho chứa thành công",
-    productInfo
-  );
-  })
+    const { code } = req.params;
+    if (!code) {
+        return sendResponse(res, HTTP_STATUS.BAD_REQUEST, false, "Thiếu mã sản phẩm");
+    }
+
+    try {
+        const productInfo = await Product.getProductWithWarehouses(code);
+
+        if (!productInfo || productInfo.length === 0) {
+            return sendResponse(res, HTTP_STATUS.NOT_FOUND, false, "Sản phẩm không tồn tại hoặc chưa có trong kho");
+        }
+
+        const warehouses = productInfo.map(row => ({
+            warehouse_code: row.warehouse_code,
+            warehouse_name: row.warehouse_name,
+            total_quantity: parseInt(row.total_quantity, 10) || 0 // Chuyển về số nguyên
+        }));
+
+        const totalInWarehouses = warehouses.reduce((sum, w) => sum + w.total_quantity, 0); // Tổng chính xác
+
+        const productData = {
+            product: {
+                product_code: productInfo[0].product_code,
+                product_name: productInfo[0].product_name,
+                size: productInfo[0].size,
+                color: productInfo[0].color
+            },
+            warehouses: warehouses,
+            total_in_warehouses: totalInWarehouses // Tổng số lượng sản phẩm trong kho
+        };
+
+        return sendResponse(res, HTTP_STATUS.OK, true, "Lấy thông tin sản phẩm và kho chứa thành công", productData);
+    } catch (error) {
+        console.error("❌ Lỗi server:", error);
+        return sendResponse(res, HTTP_STATUS.INTERNAL_SERVER_ERROR, false, "Lỗi server");
+    }
+}),
+
   
 };
 

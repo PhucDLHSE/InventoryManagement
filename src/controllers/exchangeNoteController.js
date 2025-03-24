@@ -4,84 +4,12 @@ const { sendResponse } = require('../utils/responseHandler');
 const asyncHandler = require('../utils/asyncHandler');
 
 const exchangeNoteController = {
-    // Tạo phiếu nhập kho
-  createImportNote: asyncHandler(async (req, res) => {
-    if (!req.user || !req.user.userCode) {
-      return sendResponse(
-        res,
-        HTTP_STATUS.UNAUTHORIZED,
-        false,
-        "Không được phép thực hiện thao tác này"
-      );
-    }
-  
-    const importData = req.body;
-    const isSystemImport = importData.is_system_import === true;
-  
-    if ( !importData.items || importData.items.length === 0) {
-      return sendResponse(
-        res,
-        HTTP_STATUS.BAD_REQUEST,
-        false,
-        "Thiếu thông tin bắt buộc cho phiếu nhập kho"
-      );
-    }
-
-    // Chỉ yêu cầu warehouse_code khi KHÔNG phải nhập vào hệ thống
-    if (!isSystemImport && !importData.warehouse_code) {
-      return sendResponse(
-        res,
-        HTTP_STATUS.BAD_REQUEST,
-        false,
-        "Thiếu mã kho nhập hàng"
-      );
-    }
-  
-    if (importData.source_type && !['EXTERNAL', 'INTERNAL', 'SYSTEM'].includes(importData.source_type)) {
-      return sendResponse(
-        res,
-        HTTP_STATUS.BAD_REQUEST,
-        false,
-        "Loại nguồn không hợp lệ. Chỉ chấp nhận EXTERNAL(kho ngoài), INTERNAL(chuyển kho nội bộ) hoặc SYSTEM(từ hệ thống)"
-      );
-    }
-  
-    // INTERNAL: Chuyển kho nội bộ
-    if (importData.source_type === 'INTERNAL' && !importData.source_warehouse_id) {
-      return sendResponse(
-        res,
-        HTTP_STATUS.BAD_REQUEST,
-        false,
-        "Cần chỉ định kho nguồn (source_warehouse_code cho việc chuyển kho nội bộ !"
-      );
-    }
-  
-    try {
-      const result = await ExchangeNote.createImportNote(importData, req.user);
-      
-      return sendResponse(
-        res,
-        HTTP_STATUS.CREATED,
-        true,
-        "Tạo phiếu nhập kho thành công",
-        result
-      );
-    } catch (error) {
-      console.error("Lỗi khi tạo phiếu nhập kho:", error);
-      return sendResponse(
-        res,
-        HTTP_STATUS.SERVER_ERROR,
-        false,
-        error.message || "Lỗi khi tạo phiếu nhập kho"
-      );
-    }
-  }),
 
   // Lấy thông tin phiếu nhập kho
-  getImportNoteById: asyncHandler(async (req, res) => {
+  getExchangeNoteById: asyncHandler(async (req, res) => {
     const { id } = req.params;
 
-    const importNote = await ExchangeNote.getImportNoteById(id);
+    const importNote = await ExchangeNote.getExchangeNoteById(id);
 
     if (!importNote) {
       return sendResponse(
@@ -115,100 +43,59 @@ const exchangeNoteController = {
   }),
 
   // Duyệt phiếu nhập kho
-  approveImportNote: asyncHandler(async (req, res) => {
+  approveExchangeNote: asyncHandler(async (req, res) => {
     const { id } = req.params;
+    const approved_by = req.user?.userCode;
 
-    if (!req.user || !req.user.userCode) {
-      return sendResponse(
-        res,
-        HTTP_STATUS.UNAUTHORIZED,
-        false,
-        "Không được phép thực hiện thao tác này"
-      );
+    console.log("ExchangeNote:", id);
+    console.log("Người duyệt:", approved_by);
+
+    if (!id) {
+        return sendResponse(res, 400, false, "Thiếu exchangeNote_id");
     }
 
-    await ExchangeNote.approveImportNote(id, req.user.userCode);
-
-    return sendResponse(
-      res,
-      HTTP_STATUS.OK,
-      true,
-      "Duyệt phiếu nhập kho thành công !."
-    );
-  }),
-
-  // Hoàn thành phiếu nhập kho
-  completeImportNote: asyncHandler(async (req, res) => {
-    const { id } = req.params;
-
-    if (!req.user || !req.user.userCode) {
-      return sendResponse(
-        res,
-        HTTP_STATUS.UNAUTHORIZED,
-        false,
-        "Không được phép thực hiện thao tác này"
-      );
+    if (!approved_by) {
+        return sendResponse(res, 401, false, "Không có quyền duyệt phiếu.");
     }
 
-    await ExchangeNote.completeImportNote(id);
-
-    return sendResponse(
-      res,
-      HTTP_STATUS.OK,
-      true,
-      "Phiếu đã hoàn thành"
-    );
-  }),
-
-  // Từ chối phiếu nhập kho
-  rejectImportNote: asyncHandler(async (req, res) => {
-  const { id } = req.params;
-
-  if (!req.user || !req.user.userCode) {
-    return sendResponse(
-      res,
-      HTTP_STATUS.UNAUTHORIZED,
-      false,
-      "Không được phép thực hiện thao tác này"
-    );
-  }
-  
-  try {
-    await ExchangeNote.rejectImportNote(id, req.user.userCode);
-
-    return sendResponse(
-      res,
-      HTTP_STATUS.OK,
-      true,
-      "Từ chối phiếu nhập kho thành công"
-    );
-  } catch (error) {
-    console.error("Lỗi khi từ chối phiếu:", error);
-    
-      if (error.message.includes("Chỉ có thể từ chối phiếu đã được duyệt")) {
-        return sendResponse(
-          res,
-          HTTP_STATUS.BAD_REQUEST,
-          false,
-          error.message
-        );
-      } else if (error.message.includes("Phiếu không tồn tại")) {
-      return sendResponse(
-        res,
-        HTTP_STATUS.NOT_FOUND,
-        false,
-        error.message
-      );
-    } else {
-      return sendResponse(
-        res,
-        HTTP_STATUS.SERVER_ERROR,
-        false,
-        "Lỗi khi từ chối phiếu: " + error.message
-        );
+    try {
+        const result = await ExchangeNote.approveExchangeNote(id, approved_by);
+        return sendResponse(res, 200, true, result.message);
+    } catch (error) {
+        return sendResponse(res, 500, false, `Lỗi server: ${error.message}`);
       }
+  }),
+
+
+  updateExchangeNoteStatus: asyncHandler(async (req, res) => {
+    const { id } = req.params;
+    const { status } = req.body; 
+    const approved_by = req.user?.userCode;
+
+    console.log("📩 Nhận request cập nhật ExchangeNote:", id);
+    console.log("🔍 Trạng thái mới:", status);
+    console.log("🔍 Người duyệt:", approved_by);
+
+    if (!id || !status) {
+        return sendResponse(res, 400, false, "Thiếu exchangeNote_id hoặc trạng thái mới.");
+    }
+
+    if (!approved_by) {
+        return sendResponse(res, 401, false, "Không có quyền thực hiện thao tác này.");
+    }
+
+    if (!["rejected", "finished"].includes(status)) {
+        return sendResponse(res, 400, false, "Trạng thái không hợp lệ.");
+    }
+
+    try {
+        const result = await ExchangeNote.updateExchangeNoteStatus(id, status, approved_by);
+        return sendResponse(res, 200, true, result.message);
+    } catch (error) {
+        return sendResponse(res, 500, false, "Lỗi server: " + error.message);
     }
   })
+
 };
 
 module.exports = exchangeNoteController;

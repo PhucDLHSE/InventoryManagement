@@ -217,76 +217,36 @@ class Product {
   }
 
   static async getProductWithWarehouses(product_code) {
-  try {
-    console.log("Đang tìm sản phẩm với mã:", product_code);
-  
-    const [productInfo] = await pool.query(`
-      SELECT p.*, pt.productType_name
-      FROM Product p
-      JOIN ProductType pt ON p.productType_code = pt.productType_code
-      WHERE p.product_code = ?
-    `, [product_code]);
-    
-    if (productInfo.length === 0) {
-      return null;
+    try {
+        const query = `
+            SELECT 
+                p.product_code,      
+                p.product_name,      
+                p.size,      
+                p.color,      
+                COALESCE(en.destination_warehouse_code, en.source_warehouse_code) AS warehouse_code,     
+                w.warehouse_name,     
+                COALESCE(SUM(ni.quantity), 0) AS total_quantity
+            FROM product p 
+            JOIN noteitem ni ON p.product_code = ni.product_code 
+            JOIN exchangenote en ON ni.exchangeNote_id = en.exchangeNote_id 
+            LEFT JOIN warehouse w  
+                ON w.warehouse_code = COALESCE(en.destination_warehouse_code, en.source_warehouse_code) 
+            WHERE ni.status = 'COMPLETED'  
+            AND p.product_code = ? 
+            GROUP BY p.product_code, p.product_name, p.size, p.color, warehouse_code, w.warehouse_name 
+            ORDER BY w.warehouse_name, p.product_name 
+            LIMIT 1000;
+        `;
+
+        const [rows] = await pool.query(query, [product_code]);
+        return rows;
+    } catch (error) {
+        console.error("❌ Lỗi khi lấy sản phẩm và kho hàng:", error);
+        throw error;
     }
-    
-    const [warehouseInfo] = await pool.query(`
-      SELECT 
-        w.warehouse_code,
-        w.warehouse_name,
-        w.address,
-        (
-          COALESCE((
-            SELECT SUM(ni.quantity)
-            FROM NoteItem ni
-            JOIN ExchangeNote e ON ni.exchangeNote_id = e.exchangeNote_id
-            WHERE ni.product_code = ?
-            AND e.status = 'finished'
-            AND e.transactionType = 'IMPORT'
-            AND e.destination_warehouse_id = w.warehouse_code
-          ), 0)
-          -
-          COALESCE((
-            SELECT SUM(ni.quantity)
-            FROM NoteItem ni
-            JOIN ExchangeNote e ON ni.exchangeNote_id = e.exchangeNote_id
-            WHERE ni.product_code = ?
-            AND e.status = 'finished'
-            AND e.transactionType = 'EXPORT'
-            AND e.source_warehouse_id = w.warehouse_code
-          ), 0)
-          ) as quantity_in_warehouse
-      FROM 
-        Warehouse w
-      WHERE EXISTS (
-        SELECT 1 FROM NoteItem ni
-        JOIN ExchangeNote e ON ni.exchangeNote_id = e.exchangeNote_id
-        WHERE ni.product_code = ?
-        AND e.status = 'finished'
-        AND (
-          (e.transactionType = 'IMPORT' AND e.destination_warehouse_id = w.warehouse_code) OR
-          (e.transactionType = 'EXPORT' AND e.source_warehouse_id = w.warehouse_code)
-        )
-      )
-      HAVING quantity_in_warehouse > 0
-      ORDER BY w.warehouse_name
-    `, [product_code, product_code, product_code]);
-    
-    const totalQuantityInWarehouses = warehouseInfo.reduce(
-      (sum, warehouse) => sum + parseInt(warehouse.quantity_in_warehouse), 0
-    );
-    
-    return {
-      product: productInfo[0],
-      warehouses: warehouseInfo,
-      total_in_warehouses: totalQuantityInWarehouses
-    };
-  } catch (error) {
-      console.error("Lỗi khi tìm địa điểm của sản phẩm sản phẩm:", error);
-      throw error;
-    }
-  }
+}
+
 
 }
 

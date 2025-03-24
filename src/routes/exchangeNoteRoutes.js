@@ -3,22 +3,15 @@ const router = express.Router();
 const exchangeNoteController = require('../controllers/exchangeNoteController');
 const { verifyToken, verifyManager } = require('../middleware/authMiddleware');
 
-// Tạo phiếu nhập kho - Chỉ Manager có thể tạo
-router.post('/import', verifyToken, verifyManager, exchangeNoteController.createImportNote);
-
 // Lấy danh sách phiếu nhập kho
 router.get('/all', verifyToken, exchangeNoteController.getAllExchangeNotes);
 
 // Lấy thông tin một phiếu nhập kho
-router.get('/import/:id', verifyToken, exchangeNoteController.getImportNoteById);
+router.get('/:id', verifyToken, exchangeNoteController.getExchangeNoteById);
 
 // Duyệt phiếu nhập kho - Chỉ Manager/Admin có thể duyệt
-router.patch('/import/approve/:id', verifyToken, verifyManager, exchangeNoteController.approveImportNote);
+router.put('/approve/:id', verifyToken, verifyManager, exchangeNoteController.approveExchangeNote);
 
-// Hoàn thành phiếu nhập kho - Chỉ Manager/Admin có thể hoàn thành
-router.patch('/import/complete/:id', verifyToken, verifyManager, exchangeNoteController.completeImportNote);
+router.put('/status/:id', verifyToken, verifyManager, exchangeNoteController.updateExchangeNoteStatus);
 
-// Từ chối phiếu nhập kho - Chỉ Manager/Admin có thể từ chối
-router.patch('/import/reject/:id', verifyToken, verifyManager, exchangeNoteController.rejectImportNote);
-
-module.exports = router;
+module.exports = router;    
