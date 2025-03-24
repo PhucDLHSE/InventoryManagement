@@ -102,8 +102,8 @@ const exchangeNoteController = {
   }),
 
   // Lấy danh sách phiếu nhập kho
-  getAllImportNotes: asyncHandler(async (req, res) => {
-    const importNotes = await ExchangeNote.getAllImportNotes();
+  getAllExchangeNotes: asyncHandler(async (req, res) => {
+    const importNotes = await ExchangeNote.getAllExchangeNotes();
 
     return sendResponse(
       res,

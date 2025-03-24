@@ -252,7 +252,7 @@ class ExchangeNote {
   }
 
   // Lấy danh sách phiếu nhập kho
-  static async getAllImportNotes() {
+  static async getAllExchangeNotes() {
     try {
       const [notes] = await pool.query(`
        SELECT exchangeNote_id, transactionType, status, created_by, approved_by, date, destination_warehouse_code, source_warehouse_code

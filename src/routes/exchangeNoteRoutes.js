@@ -7,7 +7,7 @@ const { verifyToken, verifyManager } = require('../middleware/authMiddleware');
 router.post('/import', verifyToken, verifyManager, exchangeNoteController.createImportNote);
 
 // Lấy danh sách phiếu nhập kho
-router.get('/import', verifyToken, exchangeNoteController.getAllImportNotes);
+router.get('/all', verifyToken, exchangeNoteController.getAllExchangeNotes);
 
 // Lấy thông tin một phiếu nhập kho
 router.get('/import/:id', verifyToken, exchangeNoteController.getImportNoteById);
