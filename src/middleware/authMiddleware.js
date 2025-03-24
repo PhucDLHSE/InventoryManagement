@@ -1,6 +1,7 @@
 const jwt = require('jsonwebtoken');
 const { ROLE_TYPES } = require('../constants/roles');
 const JWT_SECRET = process.env.JWT_SECRET || 'your-jwt-secret-key';
+const JWT_ALGORITHM = process.env.JWT_ALGORITHM;
 
 // Xác thực token
 exports.verifyToken = (req, res, next) => {
@@ -15,7 +16,7 @@ exports.verifyToken = (req, res, next) => {
 
     //"Bearer <token>"
     const token = authHeader.split(' ')[1];
-    const decoded = jwt.verify(token, JWT_SECRET);
+    const decoded = jwt.verify(token, JWT_SECRET, { algorithms: ['HS512'] });
     req.user = decoded;
   
     next();
