@@ -255,14 +255,8 @@ class ExchangeNote {
   static async getAllImportNotes() {
     try {
       const [notes] = await pool.query(`
-        SELECT e.*, w.warehouse_name, u.full_name as created_by_name,
-               u2.full_name as approved_by_name
-        FROM ExchangeNote e
-        JOIN Warehouse w ON e.warehouse_code = w.warehouse_code
-        JOIN User u ON e.created_by = u.user_code
-        LEFT JOIN User u2 ON e.approved_by = u2.user_code
-        WHERE e.transactionType = 'IMPORT'
-        ORDER BY e.date DESC
+      SELECT *
+        FROM ExchangeNote 
       `);
       
       return notes;

@@ -1,11 +1,11 @@
 const pool = require('../config/dbConfig');
 const ROLES  = require('../constants/roles');
+const bcrypt = require('bcrypt');
 const { STATUS } = require('../constants/status');
 const { USER_MESSAGES } = require('../constants/messages');
 const { ROLE_TYPES } = require('../constants/roles');
 const { generateSelectUserFields, generateSelectUserWithPassword } = require('../utils/queryUtils');
 const { v4: uuidv4 } = require('uuid');
-const bcrypt = require('bcrypt');
 
 class User {
   static async generateUserCode(role_type) {
@@ -78,8 +78,7 @@ class User {
         console.error('Không thể lấy danh sách người dùng:', error); 
         throw error;
     }
-}
-
+  }
 
   static async getByCode(userCode) {
     const [rows] = await pool.query(`
@@ -118,9 +117,8 @@ class User {
       }
   }
   
-
   // Create
-static async create(userData) {
+  static async create(userData) {
   try {
     // Check required fields
     const requiredFields = ['role_type', 'user_name', 'full_name', 'email'];
@@ -189,7 +187,7 @@ static async create(userData) {
     console.error("Create user error:", error);
     throw error;
   }
-}
+  }
 
   //Update
   static async update(userCode, userData) {
@@ -280,7 +278,7 @@ if (userData.warehouse_code !== undefined) {
   }
 
   // Delete
-static async delete(userCode) {
+  static async delete(userCode) {
   const [user] = await pool.query(`${generateSelectUserFields()} WHERE u.user_code = ?`, [userCode]);
   if (!user[0]) {
     throw new Error(USER_MESSAGES.CANNOT_DELETE);
@@ -331,7 +329,7 @@ static async delete(userCode) {
   // Xóa user
   const [result] = await pool.query('DELETE FROM User WHERE user_code = ?', [userCode]);
   return user[0];
-}
+  }
 
   static async checkUserCodeExists(userCode) {
     const [rows] = await pool.query('SELECT COUNT(*) as count FROM User WHERE user_code = ?', [userCode]);
