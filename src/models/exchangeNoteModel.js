@@ -255,10 +255,10 @@ class ExchangeNote {
   static async getAllImportNotes() {
     try {
       const [notes] = await pool.query(`
-      SELECT *
+       SELECT exchangeNote_id, transactionType, status, created_by, approved_by, date, destination_warehouse_code, source_warehouse_code
         FROM ExchangeNote 
+        ORDER BY date DESC
       `);
-      
       return notes;
       
     } catch (error) {
