@@ -50,7 +50,7 @@ exports.login = async (req, res) => {
         warehouseCode: user.warehouse_code
       },
       JWT_SECRET,
-      { expiresIn: '24h' }
+      { algorithm: 'HS512', expiresIn: '24h' }
     );
 
     // Chuẩn hóa dữ liệu user trước khi trả về
