@@ -1,10 +1,13 @@
-const jwt = require('jsonwebtoken');
 const { ROLE_TYPES } = require('../constants/roles');
-const JWT_SECRET = process.env.JWT_SECRET || 'your-jwt-secret-key';
-const JWT_ALGORITHM = process.env.JWT_ALGORITHM;
+
+// Khóa bí mật (phải giống với Java)
+const JWT_SECRET = process.env.JWT_SECRET || 'eaRge+NAiFb7HQITA/QcCaDmS7QXJlwy7UpOAJj5/ddqoWCYQquoPXkget8OK+zA';
+
+// Chuyển khóa thành Buffer để dùng với jose
+const secretKeyBuffer = Buffer.from(JWT_SECRET, 'utf8');
 
 // Xác thực token
-exports.verifyToken = (req, res, next) => {
+exports.verifyToken = async (req, res, next) => {
   try {
     const authHeader = req.headers.authorization;
     if (!authHeader || !authHeader.startsWith('Bearer ')) {
@@ -14,22 +17,29 @@ exports.verifyToken = (req, res, next) => {
       });
     }
 
-    //"Bearer <token>"
+    // "Bearer <token>"
     const token = authHeader.split(' ')[1];
-    const decoded = jwt.verify(token, JWT_SECRET, { algorithms: ['HS512'] });
-    req.user = decoded;
-  
+
+    // Tải jose bằng import() động
+    const { jwtVerify } = await import('jose');
+
+    // Xác thực token bằng jose
+    const { payload } = await jwtVerify(token, secretKeyBuffer, {
+      algorithms: ['HS512']
+    });
+
+    req.user = payload; // Gắn payload vào req.user để sử dụng trong các middleware khác
     next();
   } catch (error) {
     console.error('Token lỗi:', error);
-    
-    if (error.name === 'TokenExpiredError') {
+
+    if (error.code === 'ERR_JWT_EXPIRED') {
       return res.status(401).json({
         success: false,
         message: 'Token đã hết hạn'
       });
     }
-    
+
     return res.status(401).json({
       success: false,
       message: 'Token không hợp lệ'
@@ -85,6 +95,7 @@ exports.verifyStaff = (req, res, next) => {
   });
 };
 
+// Kiểm tra xem user có được gán kho hay không
 exports.verifyWarehouseAssigned = (req, res, next) => {
   if (!req.user) {
     return res.status(401).json({
@@ -103,7 +114,7 @@ exports.verifyWarehouseAssigned = (req, res, next) => {
   next();
 };
 
-//Only Admin
+// Chỉ cho phép Admin
 exports.onlyAdmin = (req, res, next) => {
   if (!req.user) {
     return res.status(401).json({
