@@ -47,59 +47,52 @@ class ExchangeNote {
   // Lấy thông tin phiếu nhập kho theo ID
   static async getExchangeNoteById(exchangeNote_id) {
     try {
-      const [noteInfo] = await pool.query(`
-        SELECT 
-            en.exchangeNote_id,
-            en.transactionType,
-            en.status,
-            en.date,
-            en.created_by,
-            en.approved_by,
-        CASE 
-            WHEN en.transactionType = 'EXPORT' THEN en.source_warehouse_code
-            ELSE en.destination_warehouse_code
-        END AS warehouse_code,
-            w.warehouse_name,
-            w.address,
-            ni.noteItem_id,
-            ni.noteItem_code,
-            ni.quantity AS noteItem_quantity,
-            p.product_code,
-            p.product_name,
-            p.size,
-            p.color
-        FROM ExchangeNote en
-        JOIN Warehouse w ON w.warehouse_code = 
-        CASE 
-            WHEN en.transactionType = 'EXPORT' THEN en.source_warehouse_code
-            ELSE en.destination_warehouse_code
-        END
-        JOIN NoteItem ni ON en.exchangeNote_id = ni.exchangeNote_id
-        JOIN Product p ON ni.product_code = p.product_code
-        WHERE en.exchangeNote_id = ?;
-      `, [exchangeNote_id]);
-      
-      if (noteInfo.length === 0) {
-        return null;
-      }
-      
-      const [itemsInfo] = await pool.query(`
-        SELECT ni.*, p.product_name, p.size, p.color
-        FROM NoteItem ni
-        JOIN Product p ON ni.product_code = p.product_code
-        WHERE ni.exchangeNote_id = ?
-      `, [exchangeNote_id]);
-      
-      return {
-        note: noteInfo[0],
-        items: itemsInfo
-      };
-      
+        const [noteInfo] = await pool.query(`
+            SELECT 
+                en.exchangeNote_id,
+                en.transactionType,
+                en.status,
+                en.date,
+                en.created_by,
+                en.approved_by,
+                COALESCE(en.source_warehouse_code, en.destination_warehouse_code) AS warehouse_code,
+                w.warehouse_name,
+                w.address,
+                ni.noteItem_id,
+                ni.noteItem_code,
+                ni.quantity AS noteItem_quantity,
+                p.product_code,
+                p.product_name,
+                p.size,
+                p.color
+            FROM ExchangeNote en
+            LEFT JOIN Warehouse w ON w.warehouse_code = COALESCE(en.source_warehouse_code, en.destination_warehouse_code)
+            LEFT JOIN NoteItem ni ON en.exchangeNote_id = ni.exchangeNote_id
+            LEFT JOIN Product p ON ni.product_code = p.product_code
+            WHERE en.exchangeNote_id = ?;
+        `, [exchangeNote_id]);
+        
+        if (!noteInfo || noteInfo.length === 0) {
+            return null;
+        }
+        
+        const [itemsInfo] = await pool.query(`
+            SELECT ni.*, p.product_name, p.size, p.color
+            FROM NoteItem ni
+            JOIN Product p ON ni.product_code = p.product_code
+            WHERE ni.exchangeNote_id = ?
+        `, [exchangeNote_id]);
+        
+        return {
+            note: noteInfo[0],
+            items: itemsInfo
+        };
+        
     } catch (error) {
-      console.error("Lỗi khi lấy thông tin phiếu nhập kho:", error);
-      throw error;
+        console.error("Lỗi khi lấy thông tin phiếu nhập/xuất kho:", error);
+        throw error;
     }
-  }
+}
 
   // Lấy danh sách phiếu nhập kho
   static async getAllExchangeNotes() {
