@@ -223,7 +223,6 @@ class Warehouse {
       try {
         console.log("Đang lấy danh sách sản phẩm trong kho:", warehouse_code);
         
-        // Truy vấn dựa trên phiếu nhập/xuất đã hoàn thành
         const [products] = await pool.query(`
           SELECT 
             p.product_code,
@@ -235,10 +234,8 @@ class Warehouse {
             COALESCE(
               (SELECT SUM(
                 CASE 
-                  WHEN (e.transactionType = 'IMPORT' AND e.destination_warehouse_id = ?) THEN ni.quantity
-                  WHEN (e.transactionType = 'EXPORT' AND e.source_warehouse_id = ?) THEN -ni.quantity
-                  WHEN (e.transactionType = 'TRANSFER' AND e.destination_warehouse_id = ?) THEN ni.quantity
-                  WHEN (e.transactionType = 'TRANSFER' AND e.source_warehouse_id = ?) THEN -ni.quantity
+                  WHEN (e.transactionType = 'IMPORT' AND e.destination_warehouse_code = ?) THEN ni.quantity
+                  WHEN (e.transactionType = 'EXPORT' AND e.source_warehouse_code = ?) THEN -ni.quantity
                   ELSE 0
                 END
               )
@@ -257,7 +254,7 @@ class Warehouse {
             SELECT 1 FROM NoteItem ni
             JOIN ExchangeNote e ON ni.exchangeNote_id = e.exchangeNote_id
             WHERE ni.product_code = p.product_code
-            AND (e.destination_warehouse_id = ? OR e.source_warehouse_id = ?)
+            AND (e.destination_warehouse_code = ? OR e.source_warehouse_code = ?)
             AND e.status = 'finished'
           )
           HAVING quantity_in_warehouse > 0
