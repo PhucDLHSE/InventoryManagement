@@ -232,14 +232,6 @@ class Warehouse {
     pt.productType_name,
     pt.productType_code,
     COALESCE(
-        (SELECT actual_quantity
-         FROM StockCheckProduct scp
-         JOIN StockCheckNote scn ON scp.stockCheckNote_id = scn.stockCheckNote_id
-         WHERE scp.product_code = p.product_code
-         AND scn.warehouse_code = ?
-         AND scn.stockCheck_status = 'finished'
-         ORDER BY scn.date DESC
-         LIMIT 1),
         (SELECT SUM(
             CASE 
                 WHEN (e.transactionType = 'IMPORT' AND e.destination_warehouse_code = ?) THEN ni.quantity
