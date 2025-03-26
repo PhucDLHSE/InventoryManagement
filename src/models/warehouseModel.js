@@ -245,7 +245,6 @@ class Warehouse {
               AND e.status = 'finished'
               ), 0
             ) as quantity_in_warehouse,
-            p.status
           FROM 
             Product p
           JOIN 
