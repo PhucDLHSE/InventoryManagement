@@ -140,6 +140,12 @@ class Product {
     try {
         console.log("🔍 Đang tìm sản phẩm với product_code:", product_code);
 
+        await pool.query(`
+          UPDATE Product 
+          SET status = 'outofstock' 
+          WHERE quantity = 0 AND status != 'outofstock'
+        `);
+        
         const [rows] = await pool.query(`
             SELECT p.*, pt.productType_name 
             FROM Product p
