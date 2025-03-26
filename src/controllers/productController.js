@@ -269,10 +269,10 @@ const productController = {
         const warehouses = productInfo.map(row => ({
             warehouse_code: row.warehouse_code,
             warehouse_name: row.warehouse_name,
-            total_quantity: parseInt(row.total_quantity, 10) || 0 // Chuyển về số nguyên
+            total_quantity: parseInt(row.total_quantity, 10) || 0 
         }));
 
-        const totalInWarehouses = warehouses.reduce((sum, w) => sum + w.total_quantity, 0); // Tổng chính xác
+        const totalInWarehouses = warehouses.reduce((sum, w) => sum + w.total_quantity, 0); 
 
         const productData = {
             product: {
@@ -282,7 +282,7 @@ const productController = {
                 color: productInfo[0].color
             },
             warehouses: warehouses,
-            total_in_warehouses: totalInWarehouses // Tổng số lượng sản phẩm trong kho
+            total_in_warehouses: totalInWarehouses 
         };
 
         return sendResponse(res, HTTP_STATUS.OK, true, "Lấy thông tin sản phẩm và kho chứa thành công", productData);

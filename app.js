@@ -4,6 +4,7 @@ const helmet = require('helmet');
 const morgan = require('morgan');
 const swaggerJsDoc = require('swagger-jsdoc');
 const swaggerUi = require('swagger-ui-express');
+const axios = require('axios');
 
 const app = express();
 const path = require("path");
@@ -66,6 +67,23 @@ app.use('/api/exchange-notes', require('./src/routes/exchangeNoteRoutes'));
 app.use((req, res, next) => {
   console.log(`${req.method} ${req.url}`);
   next();
+});
+
+app.post('/api/transactions/create', async (req, res) => {
+  try {
+      const response = await axios.post('https://app-250312143530.azurewebsites.net/api/transactions/create', req.body, {
+          headers: {
+              'Content-Type': 'application/json'
+          }
+      });
+      res.status(response.status).json(response.data);
+  } catch (error) {
+      if (error.response) {
+          res.status(error.response.status).json(error.response.data);
+      } else {
+          res.status(500).json({ message: 'Internal Server Error', error: error.message });
+      }
+  }
 });
 
 //404
