@@ -221,51 +221,52 @@ class Warehouse {
 
     static async getProductsInWarehouse(warehouse_code) {
       try {
-        console.log("Đang lấy danh sách sản phẩm trong kho:", warehouse_code);
-        
-        const [products] = await pool.query(`
-          SELECT 
-            p.product_code,
-            p.product_name,
-            p.size,
-            p.color,
-            pt.productType_name,
-            pt.productType_code,
-            COALESCE(
-              (SELECT SUM(
-                CASE 
-                  WHEN (e.transactionType = 'IMPORT' AND e.destination_warehouse_code = ?) THEN ni.quantity
-                  WHEN (e.transactionType = 'EXPORT' AND e.source_warehouse_code = ?) THEN -ni.quantity
-                  ELSE 0
-                END
-              )
-              FROM NoteItem ni
+          console.log("Đang lấy danh sách sản phẩm trong kho:", warehouse_code);
+          
+          const [products] = await pool.query(`
+            SELECT 
+              p.product_code,
+              p.product_name,
+              p.size,
+              p.color,
+              pt.productType_name,
+              pt.productType_code,
+              COALESCE(
+                (SELECT SUM(
+                  CASE 
+                    WHEN (e.transactionType = 'IMPORT' AND e.destination_warehouse_code = ?) THEN ni.quantity
+                    WHEN (e.transactionType = 'EXPORT' AND e.source_warehouse_code = ?) THEN -ni.quantity
+                    ELSE 0
+                  END
+                )
+                FROM NoteItem ni
+                JOIN ExchangeNote e ON ni.exchangeNote_id = e.exchangeNote_id
+                WHERE ni.product_code = p.product_code
+                AND e.status = 'finished'
+                ), 0
+              ) as quantity_in_warehouse
+            FROM 
+              Product p
+            JOIN 
+              ProductType pt ON p.productType_code = pt.productType_code
+            WHERE EXISTS (
+              SELECT 1 FROM NoteItem ni
               JOIN ExchangeNote e ON ni.exchangeNote_id = e.exchangeNote_id
               WHERE ni.product_code = p.product_code
+              AND (e.destination_warehouse_code = ? OR e.source_warehouse_code = ?)
               AND e.status = 'finished'
-              ), 0
-            ) as quantity_in_warehouse,
-          FROM 
-            Product p
-          JOIN 
-            ProductType pt ON p.productType_code = pt.productType_code
-          WHERE EXISTS (
-            SELECT 1 FROM NoteItem ni
-            JOIN ExchangeNote e ON ni.exchangeNote_id = e.exchangeNote_id
-            WHERE ni.product_code = p.product_code
-            AND (e.destination_warehouse_code = ? OR e.source_warehouse_code = ?)
-            AND e.status = 'finished'
-          )
-          HAVING quantity_in_warehouse > 0
-          ORDER BY p.product_name
-        `, [warehouse_code, warehouse_code, warehouse_code, warehouse_code, warehouse_code, warehouse_code]);
-        
-        return products;
+            )
+            HAVING quantity_in_warehouse > 0
+            ORDER BY p.product_name
+          `, [warehouse_code, warehouse_code, warehouse_code, warehouse_code, warehouse_code, warehouse_code]);
+          
+          return products;
       } catch (error) {
-        console.error("Lỗi khi lấy danh sách sản phẩm trong kho:", error);
-        throw error;
+          console.error("Lỗi khi lấy danh sách sản phẩm trong kho:", error);
+          throw error;
       }
-    }
+  }
+  
   
     static async getWarehouseById(warehouse_code) {
       try {
