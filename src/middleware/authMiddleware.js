@@ -28,7 +28,7 @@ exports.verifyToken = async (req, res, next) => {
       algorithms: ['HS512']
     });
 
-    req.user = payload; // Gắn payload vào req.user để sử dụng trong các middleware khác
+    req.user = payload; 
     next();
   } catch (error) {
     console.error('Token lỗi:', error);

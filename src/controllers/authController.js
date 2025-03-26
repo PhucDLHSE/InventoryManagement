@@ -16,8 +16,6 @@ exports.login = async (req, res) => {
         message: 'Vui lòng nhập username và password'
       });
     }
-
-    // Tìm user theo username
     const user = await User.findByUsernameWithPassword(user_name);
     if (!user) {
       return res.status(401).json({
@@ -26,7 +24,6 @@ exports.login = async (req, res) => {
       });
     }
 
-    // So sánh password sử dụng bcrypt
     const isPasswordValid = await bcrypt.compare(password, user.password);
     if (!isPasswordValid) {
       return res.status(401).json({
@@ -34,8 +31,6 @@ exports.login = async (req, res) => {
         message: 'Thông tin đăng nhập không hợp lệ'
       });
     }
-
-    // Kiểm tra role_type (giả sử user có trường role_type)
     if (!user.role_type) {
       return res.status(403).json({
         success: false,
@@ -47,13 +42,13 @@ exports.login = async (req, res) => {
     const { SignJWT } = await import('jose');
 
     // Tạo JWT token bằng jose
-    const iat = Math.floor(Date.now() / 1000); // Issued at
+    const iat = Math.floor(Date.now() / 1000); 
     const exp = iat + (24 * 60 * 60); // Hết hạn sau 24 giờ
 
     const token = await new SignJWT({
       userId: user.user_id,
       userCode: user.user_code,
-      role: user.role_type, // Sử dụng role_type thay vì role_id
+      role: user.role_type, 
       username: user.user_name,
       warehouseCode: user.warehouse_code,
       iat: iat,
@@ -64,7 +59,6 @@ exports.login = async (req, res) => {
       .setExpirationTime(exp)
       .sign(secretKeyBuffer);
 
-    // Chuẩn hóa dữ liệu user trước khi trả về
     const userData = { ...user };
     delete userData.password;
 

@@ -114,18 +114,27 @@ class Product {
 
   static async getAll() {
     try {
+      // Cập nhật trạng thái của sản phẩm có số lượng bằng 0
+      await pool.query(`
+        UPDATE Product 
+        SET status = 'outofstock' 
+        WHERE quantity = 0 AND status != 'outofstock'
+      `);
+
       const [products] = await pool.query(`
         SELECT p.*, pt.productType_name
         FROM Product p
         JOIN ProductType pt ON p.productType_code = pt.productType_code
         ORDER BY p.product_name
       `);
+
       return products;
     } catch (error) {
       console.error("Lỗi khi lấy danh sách sản phẩm:", error);
       throw error;
     }
-  }
+}
+
 
   static async getByCode(product_code) {
     try {
