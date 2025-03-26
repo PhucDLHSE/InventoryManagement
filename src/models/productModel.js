@@ -141,7 +141,7 @@ class Product {
         console.log("🔍 Đang tìm sản phẩm với product_code:", product_code);
         
         const [rows] = await pool.query(`
-            SELECT p.product_code, p.product_name, p.size, p.color, p.quantity, pt.productType_name 
+            SELECT p.product_code, p.product_name, p.size, p.color, p.quantity,p.productType_code, pt.productType_name 
             FROM Product p
             JOIN ProductType pt ON p.productType_code = pt.productType_code
             WHERE BINARY p.product_code = ?`, [product_code]
