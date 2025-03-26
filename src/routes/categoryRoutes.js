@@ -3,25 +3,6 @@ const router = express.Router();
 const categoryController = require('../controllers/categoryController');
 const { verifyToken, verifyManager } = require('../middleware/authMiddleware');
 
-/**
- * @swagger
- * components:
- *   schemas:
- *     Category:
- *       type: object
- *       required:
- *         - name
- *       properties:
- *         category_id:
- *           type: string
- *           example: 72a66c72-f152-4818-aefb-dc4b68e8e7d3
- *         category_code:
- *           type: string
- *           example: ao_dai
- *         category_name:
- *           type: string
- *           example: Áo dài
- */
 
 /**
  * @swagger
